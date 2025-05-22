@@ -16,7 +16,11 @@ def test_import_modules() -> None:
     import ingest.saxo_ws as saxo_ws
     import storage.on_drive as on_drive
     import storage.redis_client as redis_client
+    from importlib import import_module
+
+    api_router = import_module("api.router")
 
     assert callable(redis_client.get_redis)
     assert hasattr(saxo_ws, "stream_quotes")
     assert hasattr(on_drive, "upload_bytes")
+    assert hasattr(api_router, "router")
