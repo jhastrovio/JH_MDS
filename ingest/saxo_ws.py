@@ -1,0 +1,48 @@
+from __future__ import annotations
+
+import json
+import os
+from typing import Iterable
+
+import websockets
+from pydantic import BaseModel
+from redis.asyncio import Redis
+
+REDIS_TTL_SECONDS = 30
+WS_URL = "wss://gateway.saxoapi.com/sim/openapi/streamingws/connect"
+
+
+class SaxoTick(BaseModel):
+    symbol: str
+    bid: float
+    ask: float
+    timestamp: str
+
+
+async def _connect() -> websockets.WebSocketClientProtocol:
+    token = os.environ.get("SAXO_API_TOKEN")
+    if not token:
+        raise RuntimeError("SAXO_API_TOKEN not set")
+    url = f"{WS_URL}?authorization=Bearer%20{token}"  # simple query-style auth
+    return await websockets.connect(url)
+
+
+async def stream_quotes(symbols: Iterable[str], redis: Redis) -> None:
+    """Subscribe to Saxo streaming and persist ticks to Redis."""
+    async with await _connect() as ws:
+        await ws.send(json.dumps({"ContextId": "mds", "Instruments": list(symbols)}))
+        async for raw in ws:
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            if "Symbol" not in data:
+                continue
+            tick = SaxoTick(
+                symbol=data["Symbol"],
+                bid=float(data.get("Bid", 0)),
+                ask=float(data.get("Ask", 0)),
+                timestamp=data.get("TimeStamp", ""),
+            )
+            key = f"fx:{tick.symbol}"
+            await redis.set(key, tick.model_dump_json(), ex=REDIS_TTL_SECONDS)
