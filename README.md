@@ -38,6 +38,15 @@ A market-data service for live prices, historical ticks, and snapshots, built wi
 
 3. Set up environment variables:
 
+## Development Setup
+
+Before committing, format and lint the code:
+
+```bash
+black .
+ruff check .
+```
+
 ## Running Tests
 
 Run unit tests from the repository root:
