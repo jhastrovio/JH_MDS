@@ -1,0 +1,32 @@
+# Node modules
+node_modules/
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Compiled artifacts
+*.so
+*.dylib
+*.dll
+*.exe
+*.class
+build/
+dist/
+
+# Environment variables
+.env
+.env.*
+!.env.local.md
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Editor directories
+.vscode/
+.idea/
+
