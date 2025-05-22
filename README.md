@@ -27,14 +27,5 @@ A market-data service for live prices, historical ticks, and snapshots, built wi
 - OneDrive (Microsoft Graph) app registration
 - GitHub repo access
 
-## Getting Started
 
-1. **Clone the repo**
-   ```bash
-   git clone git@github.com:jhastrovio/JH_MDS.git
-   cd JH_MDS
-   ```
-2. **Install dependencies**
-   ```bash
-   bash setup.sh
    ```
