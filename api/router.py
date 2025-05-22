@@ -7,6 +7,7 @@ from typing import Any
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
 
 from market_data.models import PriceResponse, Tick
 from storage.redis_client import get_redis
@@ -24,7 +25,9 @@ def _verify_jwt(
     if not secret:
         raise HTTPException(status_code=500, detail="JWT_SECRET not configured")
     token = credentials.credentials
-    if token != secret:
+    try:
+        jwt.decode(token, secret, algorithms=["HS256"])
+    except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 

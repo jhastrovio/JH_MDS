@@ -57,38 +57,53 @@ async def stream_quotes(symbols: Iterable[str], redis: Redis) -> None:
     try:
         while True:
             try:
-                async with await _connect() as ws:
-                    await ws.send(
-                        json.dumps({"ContextId": "mds", "Instruments": list(symbols)})
-                    )
-                    backoff = 1
-                    async for raw in ws:
-                        try:
-                            data = json.loads(raw)
-                        except json.JSONDecodeError:
-                            continue
-                        if "Symbol" not in data:
-                            continue
-                        tick = SaxoTick(
-                            symbol=data["Symbol"],
-                            bid=float(data.get("Bid", 0)),
-                            ask=float(data.get("Ask", 0)),
-                            timestamp=data.get("TimeStamp", ""),
-                        )
-                        serialized = tick.model_dump_json()
-                        key = f"fx:{tick.symbol}"
-                        await redis.set(key, serialized, ex=REDIS_TTL_SECONDS)
 
-                        list_key = f"ticks:{tick.symbol}"
-                        await redis.lpush(list_key, serialized)
-                        await redis.ltrim(list_key, 0, MAX_TICKS_PER_SYMBOL - 1)
-                        await redis.expire(list_key, REDIS_TTL_SECONDS)
-                    # exit if stream ends normally
-                    break
-            except (websockets.WebSocketException, OSError):
-                await asyncio.sleep(backoff)
-                backoff = min(backoff * 2, 16)
-            except asyncio.CancelledError:
+try:
+    while True:
+        try:
+            # 1) connect & subscribe
+            async with await _connect() as ws:
+                await ws.send(json.dumps({
+                    "ContextId": "mds",
+                    "Instruments": list(symbols)
+                }))
+                backoff = 1
+
+                # 2) read & parse ticks
+                async for raw in ws:
+                    try:
+                        data = json.loads(raw)
+                    except json.JSONDecodeError:
+                        continue
+                    if "Symbol" not in data:
+                        continue
+
+                    tick = SaxoTick(
+                        symbol=data["Symbol"],
+                        bid=float(data.get("Bid", 0)),
+                        ask=float(data.get("Ask", 0)),
+                        timestamp=data.get("TimeStamp", ""),
+                    )
+                    serialized = tick.model_dump_json()
+                    key = f"fx:{tick.symbol}"
+                    await redis.set(key, serialized, ex=REDIS_TTL_SECONDS)
+
+                    list_key = f"ticks:{tick.symbol}"
+                    await redis.lpush(list_key, serialized)
+                    await redis.ltrim(list_key, 0, MAX_TICKS_PER_SYMBOL - 1)
+                    await redis.expire(list_key, REDIS_TTL_SECONDS)
+
+                # Exit if the stream ends normally
                 break
-    finally:
-        await redis.close()
+
+        except (websockets.WebSocketException, OSError):
+            # 3) on error, back off and retry
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 16)
+
+        except asyncio.CancelledError:
+            break
+
+finally:
+    # 4) ensure Redis connection is closed
+    await redis.close()
