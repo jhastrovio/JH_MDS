@@ -31,5 +31,5 @@ Thumbs.db
 .idea/
 
 # Setup files
-setup.sh
+.setup.sh
 
