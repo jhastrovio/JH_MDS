@@ -68,3 +68,8 @@ If you need to run tests from another directory, set the Python path manually:
 export PYTHONPATH=/path/to/JH_MDS
 pytest
 ```
+
+## API Usage
+
+Full API documentation is available in [`api/openapi.yaml`](api/openapi.yaml).
+
