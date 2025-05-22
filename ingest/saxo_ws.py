@@ -10,12 +10,14 @@ from __future__ import annotations
 import json
 import os
 from typing import Iterable
+import asyncio
 
 import websockets
 from pydantic import BaseModel
 from redis.asyncio import Redis
 
 REDIS_TTL_SECONDS = 30
+MAX_TICKS_PER_SYMBOL = 100
 WS_URL = "wss://gateway.saxoapi.com/sim/openapi/streamingws/connect"
 
 
@@ -44,21 +46,49 @@ async def _connect() -> websockets.WebSocketClientProtocol:
 
 
 async def stream_quotes(symbols: Iterable[str], redis: Redis) -> None:
-    """Subscribe to Saxo streaming and persist ticks to Redis."""
-    async with await _connect() as ws:
-        await ws.send(json.dumps({"ContextId": "mds", "Instruments": list(symbols)}))
-        async for raw in ws:
+    """Subscribe to Saxo streaming and persist ticks to Redis.
+
+    The connection is re-established with exponential backoff when interrupted.
+    Both the latest tick and a capped list of recent ticks are stored. The Redis
+    client is always closed on exit.
+    """
+
+    backoff = 1
+    try:
+        while True:
             try:
-                data = json.loads(raw)
-            except json.JSONDecodeError:
-                continue
-            if "Symbol" not in data:
-                continue
-            tick = SaxoTick(
-                symbol=data["Symbol"],
-                bid=float(data.get("Bid", 0)),
-                ask=float(data.get("Ask", 0)),
-                timestamp=data.get("TimeStamp", ""),
-            )
-            key = f"fx:{tick.symbol}"
-            await redis.set(key, tick.model_dump_json(), ex=REDIS_TTL_SECONDS)
+                async with await _connect() as ws:
+                    await ws.send(
+                        json.dumps({"ContextId": "mds", "Instruments": list(symbols)})
+                    )
+                    backoff = 1
+                    async for raw in ws:
+                        try:
+                            data = json.loads(raw)
+                        except json.JSONDecodeError:
+                            continue
+                        if "Symbol" not in data:
+                            continue
+                        tick = SaxoTick(
+                            symbol=data["Symbol"],
+                            bid=float(data.get("Bid", 0)),
+                            ask=float(data.get("Ask", 0)),
+                            timestamp=data.get("TimeStamp", ""),
+                        )
+                        serialized = tick.model_dump_json()
+                        key = f"fx:{tick.symbol}"
+                        await redis.set(key, serialized, ex=REDIS_TTL_SECONDS)
+
+                        list_key = f"ticks:{tick.symbol}"
+                        await redis.lpush(list_key, serialized)
+                        await redis.ltrim(list_key, 0, MAX_TICKS_PER_SYMBOL - 1)
+                        await redis.expire(list_key, REDIS_TTL_SECONDS)
+                    # exit if stream ends normally
+                    break
+            except (websockets.WebSocketException, OSError):
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 16)
+            except asyncio.CancelledError:
+                break
+    finally:
+        await redis.close()
