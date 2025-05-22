@@ -33,7 +33,7 @@ Design and build a lightweight web application that lets traders view, analyse a
 
 1. **Watchlist** – live tick table with colour‑coded change & sparkline
 2. **Daily Movers** – ranked FX & index %‑move heat‑map
-3. **AI‑generated Dashboard Scaffolds** – use [v0.dev](https://v0.dev) (Vercel’s AI UI generator) to quickly prototype and iterate Tailwind/React dashboard components, ensuring consistent design tokens across views.
+3. **AI‑generated Dashboard Scaffolds** – use [v0.dev](https://v0.dev) (Vercel's AI UI generator) to quickly prototype and iterate Tailwind/React dashboard components, ensuring consistent design tokens across views.
 
 ### 4.4 Export / Integrations
 
@@ -65,8 +65,8 @@ Design and build a lightweight web application that lets traders view, analyse a
                            +-------------------+
 ```
 
-* **Language**: Python 3.12
-* **Frameworks & UI**: FastAPI (backend); Next.js 14 + Tailwind CSS; **v0.dev** to auto‑generate and refactor React/Tailwind components for dashboards
+* **Language**: Python 3.12
+* **Frameworks & UI**: FastAPI (backend); Next.js 14 + Tailwind CSS; **v0.dev** to auto‑generate and refactor React/Tailwind components for dashboards
 * **Deployment**: Vercel serverless; GitHub Actions CI/CD
 * **Cache**: Upstash Redis (15–30 s TTL) for near‑real‑time ticks
 * **Persistent Storage**: OneDrive / SharePoint (via Microsoft Graph API) – store CSV/Parquet snapshots and user preferences; no dedicated server‑side DB to keep footprint light
@@ -75,8 +75,8 @@ Design and build a lightweight web application that lets traders view, analyse a
 ## 8 – Deployment & DevOps
 
 * **Environments**: `dev`, `prod` Vercel projects (both can leverage v0.dev preview URLs)
-* **Secrets**: Vercel encrypted environment variables; rotate quarterly
-* **Testing**: PyTest + Playwright e2e; PR previews
+* **Secrets**: Vercel encrypted environment variables; rotate quarterly
+* **Testing**: PyTest + Requests for API testing; PR previews
 * **Observability**: Simple Redis‑heartbeat email alert via SendGrid (optional)
 
   * Full observability stack moved to Future Enhancements
@@ -98,7 +98,7 @@ Design and build a lightweight web application that lets traders view, analyse a
 * AI‑generated market commentary email at EOD
 * **OpenAI / GenAI roadmap**:
 
-  * Natural‑language “Chat‑with‑the‑market” query interface (GPT‑4o)
+  * Natural‑language "Chat‑with‑the‑market" query interface (GPT‑4o)
   * Headline/news summariser widget
   * Alert explanation generator (why did an alert fire?)
 

@@ -38,7 +38,7 @@ The agent MUST read/parse these before generating or editing code.
 | Cache           | **Upstash Redis**                                             | Keys: `fx:<SYM>`, `rate:<SYM>`, `idx:<SYM>`; TTL 30 s.                      |
 | Persistence     | Microsoft Graph API                                           | Wrapper in `storage/on_drive.py`; saves Parquet snapshots (pyarrow).        |
 | Front‑end       | **Next.js 14 (app router)** with Tailwind & v0.dev components | React Server Components when possible; fetches via `/api/price`.            |
-| E2E Testing     | **Playwright + pytest**                                       | At least one smoke test per deployed preview.                               |
+| E2E Testing     | **Requests + pytest**                                       | At least one smoke test per deployed preview.                               |
 
 ---
 
@@ -60,8 +60,8 @@ No prose outside code fences except a one‑sentence summary.
 
 ## 5. Mandatory Checks Before Committing
 
-1. `pytest -q` – all unit tests green.
-2. `playwright test --config=playwright.config.py --project=chromium --reporter=line` – E2E smoke passes.
+1. `pytest tests/` – All unit tests pass.
+2. `pytest tests/api/` - API tests pass with expected responses.
 3. `black --check . && ruff .` – format & lint.
 4. Bundle size of front‑end route `< 250 kB` uncompressed.
 

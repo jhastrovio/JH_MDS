@@ -33,3 +33,5 @@ Thumbs.db
 # Setup files
 .setup.sh
 
+# Virtual environment
+.venv/
