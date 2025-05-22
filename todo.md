@@ -5,8 +5,8 @@
 ### API Implementation
 - [x] Create FastAPI router in /api directory
 - [x] Implement /api/price endpoint for latest prices
-- [ ] Implement /api/ticks endpoint for historical data
-- [ ] Implement /api/snapshot endpoint for storage
+- [x] Implement /api/ticks endpoint for historical data
+- [x] Implement /api/snapshot endpoint for storage
 - [x] Add JWT authentication middleware
 
 ### Data Ingestion
@@ -83,7 +83,6 @@
 ✅ API contract defined in OpenAPI spec
 
 ## Next Steps
-1. Implement the /api/ticks and /api/snapshot endpoints
-2. Finish the Saxo WebSocket client with error handling
-3. Set up the Next.js frontend project
-4. Implement the core Watchlist component
+1. Finish the Saxo WebSocket client with error handling
+2. Set up the Next.js frontend project
+3. Implement the core Watchlist component
