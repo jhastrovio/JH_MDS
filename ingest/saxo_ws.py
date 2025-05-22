@@ -1,3 +1,10 @@
+"""Utilities for streaming foreign exchange quotes from Saxo via WebSockets.
+
+The module exposes a small wrapper around Saxo's streaming API that forwards
+incoming ticks to Redis for short-term caching. Functions are asynchronous and
+designed to run in a serverless environment.
+"""
+
 from __future__ import annotations
 
 import json
@@ -20,6 +27,15 @@ class SaxoTick(BaseModel):
 
 
 async def _connect() -> websockets.WebSocketClientProtocol:
+    """Open a WebSocket connection to the Saxo streaming endpoint.
+
+    Returns
+    -------
+    websockets.WebSocketClientProtocol
+        A connected WebSocket client ready for sending and receiving
+        streaming messages.
+    """
+
     token = os.environ.get("SAXO_API_TOKEN")
     if not token:
         raise RuntimeError("SAXO_API_TOKEN not set")
