@@ -1,4 +1,14 @@
 import os
+import sys
+from pathlib import Path
+
+
+# Ensure repository root is on ``sys.path`` when tests are invoked from the
+# ``tests`` directory. Pytest adds the tests directory to ``sys.path`` by
+# default, so direct imports like ``ingest`` would fail without this tweak.
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 
 def test_import_modules() -> None:
