@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from redis.asyncio import Redis
 
 REDIS_TTL_SECONDS = 30
+MAX_TICKS_PER_SYMBOL = 100
 WS_URL = "wss://gateway.saxoapi.com/sim/openapi/streamingws/connect"
 
 
@@ -61,4 +62,10 @@ async def stream_quotes(symbols: Iterable[str], redis: Redis) -> None:
                 timestamp=data.get("TimeStamp", ""),
             )
             key = f"fx:{tick.symbol}"
-            await redis.set(key, tick.model_dump_json(), ex=REDIS_TTL_SECONDS)
+            serialized = tick.model_dump_json()
+            await redis.set(key, serialized, ex=REDIS_TTL_SECONDS)
+
+            list_key = f"ticks:{tick.symbol}"
+            await redis.lpush(list_key, serialized)
+            await redis.ltrim(list_key, 0, MAX_TICKS_PER_SYMBOL - 1)
+            await redis.expire(list_key, REDIS_TTL_SECONDS)
