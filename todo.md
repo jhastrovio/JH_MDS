@@ -3,11 +3,11 @@
 ## High Priority (Core Functionality)
 
 ### API Implementation
-- [ ] Create FastAPI router in /api directory
-- [ ] Implement /api/price endpoint for latest prices
+- [x] Create FastAPI router in /api directory
+- [x] Implement /api/price endpoint for latest prices
 - [ ] Implement /api/ticks endpoint for historical data
 - [ ] Implement /api/snapshot endpoint for storage
-- [ ] Add JWT authentication middleware
+- [x] Add JWT authentication middleware
 
 ### Data Ingestion
 - [ ] Complete Saxo WebSocket implementation (partially started in ingest/saxo_ws.py)
@@ -35,7 +35,7 @@
 - [ ] Implement backup storage strategy
 
 ### Testing & CI/CD
-- [ ] Add API integration tests
+- [x] Add API integration tests
 - [ ] Set up GitHub Actions workflow
 - [ ] Add frontend component tests
 - [ ] Set up Vercel deployment pipeline
@@ -83,7 +83,7 @@
 ✅ API contract defined in OpenAPI spec
 
 ## Next Steps
-1. Focus on completing the FastAPI router implementation
+1. Implement the /api/ticks and /api/snapshot endpoints
 2. Finish the Saxo WebSocket client with error handling
 3. Set up the Next.js frontend project
 4. Implement the core Watchlist component
