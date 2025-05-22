@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+websockets
+redis
+pyarrow
+pydantic
+pytest
+playwright
