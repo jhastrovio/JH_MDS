@@ -45,7 +45,7 @@ async def test_saxo_proper():
         # Step 1: Create HTTP subscription first
         print("📡 Step 1: Creating HTTP subscription...")
         
-        subscription_url = "https://gateway.saxobank.com/sim/openapi/trade/v1/prices/subscriptions"
+        subscription_url = "https://gateway.saxobank.com/openapi/trade/v1/prices/subscriptions"
         subscription_data = {
             "Arguments": {
                 "AssetType": "FxSpot",
@@ -80,7 +80,7 @@ async def test_saxo_proper():
         
         import websockets
         
-        ws_url = f"wss://streaming.saxobank.com/sim/openapi/streamingws/connect?contextId={context_id}"
+        ws_url = f"wss://streaming.saxobank.com/openapi/streamingws/connect?contextId={context_id}"
         ws_headers = {"Authorization": f"Bearer {token}"}
         
         async with websockets.connect(ws_url, additional_headers=ws_headers) as ws:

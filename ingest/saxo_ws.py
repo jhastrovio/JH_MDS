@@ -9,18 +9,24 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from typing import Iterable
 import asyncio
+from pathlib import Path
 
 import websockets
 import aiohttp
 from pydantic import BaseModel
 from redis.asyncio import Redis
 
+# Add parent directory to path for imports
+ROOT_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT_DIR))
+
 REDIS_TTL_SECONDS = 30
 MAX_TICKS_PER_SYMBOL = 100
-WS_URL = "wss://streaming.saxobank.com/sim/openapi/streamingws/connect"
-API_BASE = "https://gateway.saxobank.com/sim/openapi"
+WS_URL = "wss://streaming.saxobank.com/openapi/streamingws/connect"
+API_BASE = "https://gateway.saxobank.com/openapi"
 
 # Symbol to UIC mapping for common FX pairs
 SYMBOL_TO_UIC = {
@@ -39,6 +45,19 @@ class SaxoTick(BaseModel):
     bid: float
     ask: float
     timestamp: str
+
+
+async def _get_oauth_token() -> str:
+    """Get valid OAuth token from the OAuth client."""
+    try:
+        from api.oauth import oauth_client
+        return await oauth_client.get_valid_token()
+    except ImportError:
+        # Fallback to environment variable for standalone testing
+        token = os.environ.get("SAXO_API_TOKEN")
+        if not token:
+            raise RuntimeError("No OAuth client available and SAXO_API_TOKEN not set")
+        return token
 
 
 async def _create_subscription(symbol: str, context_id: str, token: str) -> str:
@@ -75,12 +94,8 @@ async def _create_subscription(symbol: str, context_id: str, token: str) -> str:
                 raise RuntimeError(f"Subscription failed for {symbol}: {response.status} - {error_text}")
 
 
-async def _connect() -> websockets.WebSocketClientProtocol:
+async def _connect(token: str) -> websockets.WebSocketClientProtocol:
     """Open a WebSocket connection to the Saxo streaming endpoint."""
-
-    token = os.environ.get("SAXO_API_TOKEN")
-    if not token:
-        raise RuntimeError("SAXO_API_TOKEN not set")
     
     # Use proper authentication and contextId
     context_id = "mds"
@@ -99,9 +114,7 @@ async def stream_quotes(symbols: Iterable[str], redis: Redis) -> None:
     """
 
     context_id = "mds"
-    token = os.environ.get("SAXO_API_TOKEN")
-    if not token:
-        raise RuntimeError("SAXO_API_TOKEN not set")
+    token = await _get_oauth_token()
 
     backoff = 1
     try:
@@ -122,7 +135,7 @@ async def stream_quotes(symbols: Iterable[str], redis: Redis) -> None:
                     raise RuntimeError("No successful subscriptions created")
 
                 # 2) Connect to WebSocket and receive data
-                async with await _connect() as ws:
+                async with await _connect(token) as ws:
                     print(f"🔗 WebSocket connected, waiting for data...")
                     backoff = 1
 

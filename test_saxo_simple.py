@@ -47,7 +47,7 @@ async def test_saxo_simple():
         
         # Create contextId and use proper authentication
         context_id = "test_connection_123"
-        url = f"wss://streaming.saxobank.com/sim/openapi/streamingws/connect?contextId={context_id}"
+        url = f"wss://streaming.saxobank.com/openapi/streamingws/connect?contextId={context_id}"
         print(f"🔗 Connecting to: {url}")
         
         # Add timeout to prevent hanging - use proper headers

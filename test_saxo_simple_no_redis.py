@@ -28,8 +28,8 @@ SYMBOL_TO_UIC = {
     "USD-JPY": 23,
 }
 
-WS_URL = "wss://streaming.saxobank.com/sim/openapi/streamingws/connect"
-API_BASE = "https://gateway.saxobank.com/sim/openapi"
+WS_URL = "wss://streaming.saxobank.com/openapi/streamingws/connect"
+API_BASE = "https://gateway.saxobank.com/openapi"
 
 async def create_subscription(symbol: str, context_id: str, token: str) -> str:
     """Create HTTP subscription for a symbol and return reference ID."""

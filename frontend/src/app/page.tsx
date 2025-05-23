@@ -5,6 +5,7 @@ import { Activity, TrendingUp, TrendingDown, Zap } from 'lucide-react';
 import Watchlist from '@/components/Watchlist';
 import DailyMovers from '@/components/DailyMovers';
 import ConnectionStatus from '@/components/ConnectionStatus';
+import SaxoAuth from '@/components/SaxoAuth';
 import { type MarketSummary, type ConnectionStatus as ConnStatus } from '@/types/market-data';
 
 export default function Dashboard() {
@@ -113,6 +114,11 @@ export default function Dashboard() {
 
           {/* Dashboard Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* SaxoBank Authentication - Full width */}
+            <div className="lg:col-span-3">
+              <SaxoAuth />
+            </div>
+            
             {/* Watchlist - Takes up 2 columns */}
             <div className="lg:col-span-2">
               <Watchlist />
