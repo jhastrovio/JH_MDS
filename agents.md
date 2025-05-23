@@ -94,6 +94,9 @@ If any check fails, the agent must fix and resubmit.
 3. Auto‑label `needs‑human‑review`.
 4. Human merge or request further agent iterations.
 
+ ## Saxobank API Docs
+ https://www.developer.saxo/openapi/learn
+
 ---
 
 **End of *agents.md***
