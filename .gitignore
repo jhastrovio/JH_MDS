@@ -35,3 +35,16 @@ Thumbs.db
 
 # Virtual environment
 .venv/
+
+# Next.js  
+.next/  
+
+# Vercel  
+.vercel/  
+
+# Webpack caches & gz artifacts  
+.cache/
+*.pack.gz  
+
+# (etc…)
+
