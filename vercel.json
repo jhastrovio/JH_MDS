@@ -1,24 +1,7 @@
 {
   "functions": {
-    "api/test.py": {
-      "runtime": "python3.12"
-    },
-    "api/index.py": {
+    "api/hello.py": {
       "runtime": "python3.12"
     }
-  },
-  "routes": [
-    {
-      "src": "/api/test",
-      "dest": "/api/test.py"
-    },
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/index.py"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/frontend/$1"
-    }
-  ]
+  }
 } 
