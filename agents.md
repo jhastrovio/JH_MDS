@@ -75,7 +75,6 @@ If any check fails, the agent must fix and resubmit.
 * **No global mutable state**; use dependency‑injected Redis client.
 * **Avoid blocking loops** in edge functions; schedule background tasks via CRON on Vercel if needed.
 * **Never expose API keys** in logs or responses.
-* **Do not modify `.env.example` directly** – add a comment instead.
 
 ---
 
