@@ -1,10 +1,17 @@
 {
   "functions": {
+    "api/test.py": {
+      "runtime": "python3.12"
+    },
     "api/index.py": {
       "runtime": "python3.12"
     }
   },
   "routes": [
+    {
+      "src": "/api/test",
+      "dest": "/api/test.py"
+    },
     {
       "src": "/api/(.*)",
       "dest": "/api/index.py"
