@@ -1,6 +1,9 @@
 {
+  "buildCommand": "cd frontend && npm run build",
+  "outputDirectory": "frontend/.next",
+  "installCommand": "cd frontend && npm install",
   "functions": {
-    "api/hello.py": {
+    "frontend/api/hello.py": {
       "runtime": "python3.12"
     }
   }
