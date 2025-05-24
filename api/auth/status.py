@@ -3,20 +3,17 @@ import json
 import os
 
 class handler(BaseHTTPRequestHandler):
-
     def do_GET(self):
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
         self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
         
+        # Simple auth status check
+        # In a real implementation, you'd check for stored tokens
         response = {
-            "message": "JH Market Data API is working!",
-            "status": "ok",
-            "environment_check": {
-                "SAXO_APP_KEY": "SET" if os.environ.get("SAXO_APP_KEY") else "NOT_SET",
-                "SAXO_REDIRECT_URI": "SET" if os.environ.get("SAXO_REDIRECT_URI") else "NOT_SET"
-            }
+            "authenticated": False,
+            "message": "Not authenticated - please authenticate with SaxoBank"
         }
         
         self.wfile.write(json.dumps(response).encode('utf-8'))
