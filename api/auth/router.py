@@ -186,6 +186,12 @@ async def oauth_callback(
         <html>
         <head>
             <title>Authentication Success</title>
+            <script>
+                // Remove any URL fragments before processing
+                if (window.location.hash) {
+                    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+                }
+            </script>
         </head>
         <body>
             <h2>Authentication Successful!</h2>
@@ -219,6 +225,12 @@ async def oauth_callback(
         <html>
         <head>
             <title>Authentication Error</title>
+            <script>
+                // Remove any URL fragments before processing
+                if (window.location.hash) {{
+                    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+                }}
+            </script>
         </head>
         <body>
             <h2>Authentication Failed</h2>
@@ -245,6 +257,12 @@ async def oauth_callback(
         <html>
         <head>
             <title>Authentication Error</title>
+            <script>
+                // Remove any URL fragments before processing
+                if (window.location.hash) {{
+                    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+                }}
+            </script>
         </head>
         <body>
             <h2>Authentication Failed</h2>
