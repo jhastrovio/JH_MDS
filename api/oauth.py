@@ -121,10 +121,18 @@ class SaxoOAuth:
                         detail=f"Invalid token response: {response_text}"
                     )
                 
+                # Only raise error if we get a non-200 status code
                 if response.status != 200:
                     raise HTTPException(
-                        status_code=400, 
+                        status_code=response.status, 
                         detail=f"Token exchange failed: {response_text}"
+                    )
+                
+                # Validate required fields
+                if not isinstance(token_response, dict):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid token response format: {response_text}"
                     )
                 
                 if "access_token" not in token_response:
