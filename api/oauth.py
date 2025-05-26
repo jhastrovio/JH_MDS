@@ -8,6 +8,7 @@ from typing import Dict, Optional
 from datetime import datetime, timedelta
 from fastapi import HTTPException
 from pydantic import BaseModel
+import json
 
 try:
     import aiohttp
@@ -111,15 +112,26 @@ class SaxoOAuth:
                 data=token_data, 
                 headers=headers
             ) as response:
-                
-                if response.status != 200:
-                    error_text = await response.text()
+                response_text = await response.text()
+                try:
+                    token_response = json.loads(response_text)
+                except json.JSONDecodeError:
                     raise HTTPException(
-                        status_code=400, 
-                        detail=f"Token exchange failed: {error_text}"
+                        status_code=400,
+                        detail=f"Invalid token response: {response_text}"
                     )
                 
-                token_response = await response.json()
+                if response.status != 200:
+                    raise HTTPException(
+                        status_code=400, 
+                        detail=f"Token exchange failed: {response_text}"
+                    )
+                
+                if "access_token" not in token_response:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Missing access_token in response: {response_text}"
+                    )
         
         # Create token object
         expires_in = token_response.get("expires_in", 3600)  # Default 1 hour
