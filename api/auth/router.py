@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any
+from typing import Any, Union
 
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -16,7 +16,7 @@ from storage.on_drive import upload_table
 
 # Optional OAuth import - don't break if it fails
 try:
-    from .oauth import oauth_client
+    from ..oauth import oauth_client
     OAUTH_AVAILABLE = True
 except Exception as e:
     oauth_client = None
@@ -58,7 +58,7 @@ async def get_price(symbol: str, _: Any = Depends(_verify_jwt)) -> PriceResponse
 @router.get("/ticks", response_model=list[Tick])
 async def get_ticks(
     symbol: str,
-    since: str | None = None,
+    since: Union[str, None] = None,
     _: Any = Depends(_verify_jwt),
 ) -> list[Tick]:
     """Return cached ticks for ``symbol`` optionally filtered by ``since``."""
