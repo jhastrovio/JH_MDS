@@ -1,7 +1,5 @@
 from mangum import Mangum
+from app.app import app    # ← grab the FastAPI instance you just created
 
-# Pull in the single FastAPI "app" you defined at the package root
-from . import app
-
-# Create handler for Vercel
-handler = Mangum(app)
+# ensure the full /api/... path is preserved
+handler = Mangum(app, api_gateway=True)
