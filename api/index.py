@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from mangum import Mangum
-from . import app
 
-# Create handler for Vercel
-handler = Mangum(app) 
+from .auth import app   # ← import the FastAPI instance you actually created
+handler = Mangum(app)
+
+
