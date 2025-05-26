@@ -1,0 +1,1 @@
+"""Authentication module for SaxoBank OAuth.""" 

@@ -25,7 +25,7 @@ export default function SaxoAuth() {
 
   const checkAuthStatus = async () => {
     try {
-      const response = await fetch('/api/auth-status');
+      const response = await fetch('/api/auth/status');
       const status: AuthStatus = await response.json();
       setAuthStatus(status);
     } catch (error) {
@@ -40,7 +40,7 @@ export default function SaxoAuth() {
   const initiateAuth = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/auth-login');
+      const response = await fetch('/api/auth/login');
       if (!response.ok) {
         throw new Error(`Authentication failed: ${response.status}`);
       }

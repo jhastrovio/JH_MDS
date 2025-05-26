@@ -42,8 +42,8 @@ class handler(BaseHTTPRequestHandler):
                 warnings.append("localhost redirect URI won't work in production")
             if not saxo_redirect_uri.startswith("https://"):
                 issues.append("SAXO_REDIRECT_URI should start with 'https://'")
-            if "auth-callback" not in saxo_redirect_uri:
-                warnings.append("Redirect URI should end with '/api/auth-callback'")
+            if "auth/callback" not in saxo_redirect_uri:
+                warnings.append("Redirect URI should end with '/api/auth/callback'")
         
         # Configuration status
         config_status = "✅ Ready" if not issues else "❌ Issues Found"
@@ -61,18 +61,18 @@ class handler(BaseHTTPRequestHandler):
             "expected_values": {
                 "SAXO_APP_KEY": "Should start with '5bf5...' (from your SaxoBank app)",
                 "SAXO_APP_SECRET": "Should start with '83ce...' (from your SaxoBank app)",
-                "SAXO_REDIRECT_URI": "https://jh-mdatas.vercel.app/api/auth-callback"
+                "SAXO_REDIRECT_URI": "https://jh-mdatas.vercel.app/api/auth/callback"
             },
             "issues": issues,
             "warnings": warnings,
             "endpoints": {
-                "auth_login": "/api/auth-login",
-                "auth_callback": "/api/auth-callback", 
-                "auth_status": "/api/auth-status"
+                "auth_login": "/api/auth/login",
+                "auth_callback": "/api/auth/callback", 
+                "auth_status": "/api/auth/status"
             },
             "next_steps": [
                 "Fix any issues listed above",
-                "Test OAuth flow at /api/auth-login",
+                "Test OAuth flow at /api/auth/login",
                 "Check SaxoBank app registration matches redirect URI"
             ]
         }

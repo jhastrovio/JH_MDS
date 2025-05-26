@@ -153,7 +153,6 @@ async def initiate_oauth() -> dict[str, str]:
 
 
 @router.get("/auth/callback")
-@router.get("/auth-callback")  # Support both paths for backward compatibility
 async def oauth_callback(
     code: str = Query(..., description="Authorization code from SaxoBank"),
     state: str = Query(..., description="State parameter for validation")
