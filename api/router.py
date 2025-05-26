@@ -4,7 +4,7 @@ import json
 import os
 from typing import Any
 
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.responses import RedirectResponse, HTMLResponse
@@ -104,7 +104,7 @@ async def create_snapshot(
     import pyarrow as pa
 
     table = pa.Table.from_pylist(rows)
-    now = datetime.now(UTC).isoformat().replace(":", "-")
+    now = datetime.now(timezone.utc).isoformat().replace(":", "-")
     path = f"snapshots/{now}.parquet"
     await upload_table(table, path)
     return {"detail": "snapshot scheduled", "path": path}
