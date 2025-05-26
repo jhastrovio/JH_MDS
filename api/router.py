@@ -7,7 +7,7 @@ from typing import Any
 from datetime import datetime, UTC
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
 from jose import JWTError, jwt
 
 from market_data.models import PriceResponse, Tick
@@ -153,25 +153,117 @@ async def initiate_oauth() -> dict[str, str]:
 
 
 @router.get("/auth/callback")
+@router.get("/auth-callback")  # Support both paths for backward compatibility
 async def oauth_callback(
     code: str = Query(..., description="Authorization code from SaxoBank"),
     state: str = Query(..., description="State parameter for validation")
-) -> dict[str, str]:
+) -> HTMLResponse:
     """Handle OAuth callback from SaxoBank."""
     if not OAUTH_AVAILABLE:
-        raise HTTPException(status_code=500, detail="OAuth not configured")
+        return HTMLResponse(
+            content="""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Authentication Error</title>
+            </head>
+            <body>
+                <h2>Authentication Failed</h2>
+                <p>OAuth not configured. Missing environment variables.</p>
+                <p><a href="/">Return to application</a></p>
+            </body>
+            </html>
+            """,
+            status_code=500
+        )
         
     try:
+        # Exchange code for token
         token = await oauth_client.exchange_code_for_token(code, state)
-        return {
-            "message": "Authentication successful",
-            "expires_at": token.expires_at.isoformat(),
-            "token_type": token.token_type
-        }
+        
+        # Create success HTML response
+        html_content = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Authentication Success</title>
+        </head>
+        <body>
+            <h2>Authentication Successful!</h2>
+            <p>You can close this window and return to the application.</p>
+            <script>
+                // If this is a popup, close it and notify parent
+                if (window.opener) {
+                    window.opener.postMessage({
+                        type: 'SAXO_AUTH_SUCCESS',
+                        token: true,
+                        expires_at: '""" + token.expires_at.isoformat() + """'
+                    }, '*');
+                    window.close();
+                } else {
+                    // If not a popup, redirect to main app
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 2000);
+                }
+            </script>
+        </body>
+        </html>
+        """
+        
+        return HTMLResponse(content=html_content)
+        
     except HTTPException as e:
-        raise e
+        # Create error HTML response
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Authentication Error</title>
+        </head>
+        <body>
+            <h2>Authentication Failed</h2>
+            <p>{e.detail}</p>
+            <p><a href="/">Return to application</a></p>
+            <script>
+                // If this is a popup, notify parent of error
+                if (window.opener) {{
+                    window.opener.postMessage({{
+                        type: 'SAXO_AUTH_ERROR',
+                        error: '{e.detail}'
+                    }}, '*');
+                }}
+            </script>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content, status_code=e.status_code)
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"OAuth callback failed: {str(e)}")
+        # Create error HTML response
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Authentication Error</title>
+        </head>
+        <body>
+            <h2>Authentication Failed</h2>
+            <p>OAuth callback failed: {str(e)}</p>
+            <p><a href="/">Return to application</a></p>
+            <script>
+                // If this is a popup, notify parent of error
+                if (window.opener) {{
+                    window.opener.postMessage({{
+                        type: 'SAXO_AUTH_ERROR',
+                        error: 'OAuth callback failed: {str(e)}'
+                    }}, '*');
+                }}
+            </script>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content, status_code=500)
 
 
 @router.get("/auth/status")
