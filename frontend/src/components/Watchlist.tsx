@@ -31,6 +31,67 @@ const generateMockData = (symbol: string): MarketData => {
   };
 };
 
+// Fetch real data from backend API
+const fetchRealData = async (symbol: string): Promise<MarketData | null> => {
+  try {
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+    const token = localStorage.getItem('saxo_access_token');
+    
+    if (!apiBaseUrl || !token) {
+      console.warn(`Missing API URL or token for ${symbol}, using mock data`);
+      return null;
+    }
+
+    const response = await fetch(`${apiBaseUrl}/api/auth/price?symbol=${symbol}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      console.warn(`Failed to fetch real data for ${symbol}:`, response.status, response.statusText);
+      return null;
+    }
+
+    const priceData = await response.json();
+    
+    // Convert backend PriceResponse to MarketData format
+    // Note: We don't have all fields from the backend, so we'll use the price for both bid/ask
+    const mockSparkline = Array.from({ length: 20 }, () => priceData.price + (Math.random() - 0.5) * 0.01);
+    
+    return {
+      symbol: priceData.symbol,
+      bid: Number((priceData.price - 0.0001).toFixed(5)), // Simulate bid slightly below price
+      ask: Number((priceData.price + 0.0001).toFixed(5)), // Simulate ask slightly above price
+      timestamp: priceData.timestamp,
+      change: 0, // We don't have historical data to calculate change yet
+      changePercent: 0, // We don't have historical data to calculate change yet
+      dayHigh: Number((priceData.price + Math.random() * 0.01).toFixed(5)),
+      dayLow: Number((priceData.price - Math.random() * 0.01).toFixed(5)),
+      sparklineData: mockSparkline,
+    };
+  } catch (error) {
+    console.error(`Error fetching real data for ${symbol}:`, error);
+    return null;
+  }
+};
+
+// Symbols to fetch real data for (proof of concept)
+const REAL_DATA_SYMBOLS = ['EUR-USD', 'GBP-USD'];
+
+// Generate data for a symbol (real or mock)
+const generateDataForSymbol = async (symbol: string): Promise<MarketData> => {
+  if (REAL_DATA_SYMBOLS.includes(symbol)) {
+    const realData = await fetchRealData(symbol);
+    if (realData) {
+      return realData;
+    }
+  }
+  // Fallback to mock data
+  return generateMockData(symbol);
+};
+
 export default function Watchlist() {
   const [watchlistData, setWatchlistData] = useState<MarketData[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'fx' | 'rates' | 'indices'>('all');
@@ -38,18 +99,27 @@ export default function Watchlist() {
 
   // Initialize with mock data
   useEffect(() => {
-    const allSymbols = [...FX_MAJORS, ...RATES, ...INDICES];
-    const mockData = allSymbols.map(generateMockData);
-    setWatchlistData(mockData);
+    const loadInitialData = async () => {
+      const allSymbols = [...FX_MAJORS, ...RATES, ...INDICES];
+      const dataPromises = allSymbols.map(generateDataForSymbol);
+      const mockData = await Promise.all(dataPromises);
+      setWatchlistData(mockData);
+    };
+    
+    loadInitialData();
   }, []);
 
   // Simulate live updates
   useEffect(() => {
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
+      const allSymbols = [...FX_MAJORS, ...RATES, ...INDICES];
+      const dataPromises = allSymbols.map(generateDataForSymbol);
+      const updatedData = await Promise.all(dataPromises);
+      
       setWatchlistData(prev => 
-        prev.map(item => ({
-          ...generateMockData(item.symbol),
-          sparklineData: [...(item.sparklineData?.slice(1) || []), item.bid], // Add latest price to sparkline
+        updatedData.map((newItem, index) => ({
+          ...newItem,
+          sparklineData: [...(prev[index]?.sparklineData?.slice(1) || []), newItem.bid], // Add latest price to sparkline
         }))
       );
     }, 3000); // Update every 3 seconds
@@ -57,12 +127,16 @@ export default function Watchlist() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      setWatchlistData(prev => prev.map(item => generateMockData(item.symbol)));
+    try {
+      const allSymbols = [...FX_MAJORS, ...RATES, ...INDICES];
+      const dataPromises = allSymbols.map(generateDataForSymbol);
+      const refreshedData = await Promise.all(dataPromises);
+      setWatchlistData(refreshedData);
+    } finally {
       setIsRefreshing(false);
-    }, 1000);
+    }
   };
 
   const getFilteredData = () => {

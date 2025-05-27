@@ -22,7 +22,40 @@ export default function SaxoAuth() {
   // Check auth status on component mount
   useEffect(() => {
     checkAuthStatus();
-  }, []);
+    
+    // Listen for postMessage from OAuth callback popup
+    const handleMessage = (event: MessageEvent) => {
+      // Verify origin for security (optional but recommended)
+      if (event.origin !== apiBaseUrl) {
+        return;
+      }
+      
+      if (event.data.type === 'SAXO_AUTH_SUCCESS') {
+        // Store the access token in localStorage
+        localStorage.setItem('saxo_access_token', event.data.token);
+        localStorage.setItem('saxo_token_expires_at', event.data.expires_at);
+        
+        // Update auth status
+        setAuthStatus({
+          authenticated: true,
+          message: 'Authentication successful'
+        });
+        setLoading(false);
+      } else if (event.data.type === 'SAXO_AUTH_ERROR') {
+        setAuthStatus({
+          authenticated: false,
+          message: event.data.error || 'Authentication failed'
+        });
+        setLoading(false);
+      }
+    };
+    
+    window.addEventListener('message', handleMessage);
+    
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [apiBaseUrl]);
 
   const checkAuthStatus = async () => {
     if (!apiBaseUrl) {

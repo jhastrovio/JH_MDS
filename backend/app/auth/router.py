@@ -202,7 +202,7 @@ async def oauth_callback(
                 if (window.opener) {
                     window.opener.postMessage({
                         type: 'SAXO_AUTH_SUCCESS',
-                        token: true,
+                        token: '""" + token.access_token + """',
                         expires_at: '""" + token.expires_at.isoformat() + """'
                     }, '*');
                     window.close();
