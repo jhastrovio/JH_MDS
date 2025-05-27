@@ -17,6 +17,7 @@ interface AuthResponse {
 export default function SaxoAuth() {
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
   const [loading, setLoading] = useState(false);
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL; // Define once
 
   // Check auth status on component mount
   useEffect(() => {
@@ -24,8 +25,20 @@ export default function SaxoAuth() {
   }, []);
 
   const checkAuthStatus = async () => {
+    if (!apiBaseUrl) {
+      console.error('NEXT_PUBLIC_API_BASE_URL is not defined');
+      setAuthStatus({
+        authenticated: false,
+        message: 'API URL not configured. Please contact support.'
+      });
+      return;
+    }
     try {
-      const response = await fetch('/api/auth/status');
+      const response = await fetch(`${apiBaseUrl}/api/auth/status`);
+      if (!response.ok) { // Check if response is ok
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch auth status: ${response.status} ${errorText}`);
+      }
       const status: AuthStatus = await response.json();
       setAuthStatus(status);
     } catch (error) {
@@ -38,11 +51,21 @@ export default function SaxoAuth() {
   };
 
   const initiateAuth = async () => {
+    if (!apiBaseUrl) {
+      console.error('NEXT_PUBLIC_API_BASE_URL is not defined');
+      setAuthStatus({
+        authenticated: false,
+        message: 'API URL not configured. Please contact support.'
+      });
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const response = await fetch('/api/auth/login');
+      const response = await fetch(`${apiBaseUrl}/api/auth/login`);
       if (!response.ok) {
-        throw new Error(`Authentication failed: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`Authentication initiation failed: ${response.status} ${errorText}`);
       }
       
       const authData: AuthResponse = await response.json();
@@ -52,18 +75,22 @@ export default function SaxoAuth() {
       
       // Start polling for auth completion
       const pollInterval = setInterval(async () => {
-        await checkAuthStatus();
+        // Check if component is still mounted or auth already happened to avoid errors
         if (authStatus?.authenticated) {
           clearInterval(pollInterval);
           setLoading(false);
+          return;
         }
-      }, 2000);
+        await checkAuthStatus(); 
+      }, 3000); // Polling interval
       
-      // Stop polling after 5 minutes
+      // Stop polling after some time (e.g., 5 minutes)
       setTimeout(() => {
         clearInterval(pollInterval);
-        setLoading(false);
-      }, 300000);
+        if (!authStatus?.authenticated) { // Only set loading to false if not yet authenticated
+          setLoading(false);
+        }
+      }, 300000); // Stop polling after 5 minutes
       
     } catch (error) {
       console.error('Authentication initiation failed:', error);
