@@ -131,19 +131,48 @@ class SaxoOAuth:
                         detail=f"Token exchange failed: {error_details_to_raise}"
                     )
                 
-                # If response.status IS 200:
+                # If response.status IS 200 or 201:
                 try:
                     token_json = json.loads(raw_response_text) # Parse from the raw text we already fetched
                 except json.JSONDecodeError as e:
-                    print(f"SAXO OAUTH: Failed to decode JSON from successful (200) response. Error: {e}") # DIAGNOSTIC LOG
+                    print(f"SAXO OAUTH: Failed to decode JSON from successful ({response.status}) response. Error: {e}") # DIAGNOSTIC LOG
                     raise HTTPException(status_code=500, detail=f"Failed to decode token JSON from Saxo: {e}. Raw response: {raw_response_text}")
 
                 try:
+                    # Validate required fields from Saxo's response
+                    if not isinstance(token_json, dict):
+                        raise ValueError(f"Invalid token response format, expected dict: {token_json}")
+                    
+                    access_token = token_json.get("access_token")
+                    if not access_token:
+                        raise ValueError(f"Missing access_token in Saxo response: {token_json}")
+
+                    expires_in_str = token_json.get("expires_in")
+                    if expires_in_str is None:
+                        # Saxo's 'expires_in' should always be present in a successful token response
+                        raise ValueError(f"Missing 'expires_in' in Saxo response: {token_json}")
+                    try:
+                        expires_in = int(expires_in_str)
+                    except ValueError:
+                        raise ValueError(f"Invalid 'expires_in' format, expected integer: {expires_in_str}")
+
+                    expires_at = datetime.now() + timedelta(seconds=expires_in)
+                    
                     # Create and store token
-                    self._current_token = SaxoToken.model_validate(token_json)
-                except Exception as e:
-                    print(f"SAXO OAUTH: Failed to validate token. Error: {e}")
-                    raise HTTPException(status_code=500, detail=f"Failed to validate token: {e}")
+                    self._current_token = SaxoToken(
+                        access_token=access_token,
+                        refresh_token=token_json.get("refresh_token", ""), # Use .get for optional fields
+                        expires_at=expires_at,
+                        token_type=token_json.get("token_type", "Bearer") # Use .get for optional fields
+                    )
+                except ValueError as ve:
+                    # Catch specific ValueErrors from our checks above
+                    print(f"SAXO OAUTH: Failed to process token data from Saxo. Error: {ve}") # DIAGNOSTIC LOG
+                    raise HTTPException(status_code=500, detail=f"Failed to process token data: {ve}. Raw response: {raw_response_text}")
+                except Exception as e: # Catch other unexpected errors during token creation (e.g., Pydantic internal if any)
+                    print(f"SAXO OAUTH: Failed to create/validate SaxoToken object. Error: {e}") # DIAGNOSTIC LOG
+                    # This will catch Pydantic ValidationErrors if fields are still incorrect for SaxoToken model
+                    raise HTTPException(status_code=500, detail=f"Failed to create token object: {e}. Raw response: {raw_response_text}")
         
         # Clean up state
         del self._state_store[state]
