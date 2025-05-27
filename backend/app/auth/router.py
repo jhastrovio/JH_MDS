@@ -42,8 +42,35 @@ def _verify_jwt(
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
-@router.get("/price", response_model=PriceResponse)
-async def get_price(symbol: str, _: Any = Depends(_verify_jwt)) -> PriceResponse:
+def _verify_saxo_token(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+) -> str:
+    """Verify SaxoBank OAuth token and return it."""
+    if not OAUTH_AVAILABLE:
+        raise HTTPException(status_code=500, detail="OAuth not configured")
+    
+    token = credentials.credentials
+    
+    # For now, we'll trust that if we have the token and it's the same one
+    # stored in our oauth_client, it's valid. In production, you might want
+    # to validate it against SaxoBank's token introspection endpoint.
+    try:
+        # Check if this token matches our stored token
+        stored_token = oauth_client._current_token
+        if not stored_token or stored_token.access_token != token:
+            raise HTTPException(status_code=401, detail="Invalid or expired SaxoBank token")
+        
+        if stored_token.is_expired:
+            raise HTTPException(status_code=401, detail="SaxoBank token expired")
+            
+        return token
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Token validation failed: {str(e)}")
+
+
+@router.get("/market/price", response_model=PriceResponse)
+async def get_market_price(symbol: str, _: str = Depends(_verify_saxo_token)) -> PriceResponse:
+    """Get price data using SaxoBank OAuth token."""
     redis = get_redis()
     key = f"fx:{symbol}"
     raw = await redis.get(key)
@@ -56,13 +83,13 @@ async def get_price(symbol: str, _: Any = Depends(_verify_jwt)) -> PriceResponse
     return PriceResponse(symbol=tick.symbol, price=price, timestamp=tick.timestamp)
 
 
-@router.get("/ticks", response_model=list[Tick])
-async def get_ticks(
+@router.get("/market/ticks", response_model=list[Tick])
+async def get_market_ticks(
     symbol: str,
     since: Union[str, None] = None,
-    _: Any = Depends(_verify_jwt),
+    _: str = Depends(_verify_saxo_token),
 ) -> list[Tick]:
-    """Return cached ticks for ``symbol`` optionally filtered by ``since``."""
+    """Return cached ticks for symbol using SaxoBank OAuth token."""
     redis = get_redis()
     key = f"ticks:{symbol}"
     raw_ticks = await redis.lrange(key, 0, -1)
@@ -310,3 +337,45 @@ async def auth_status() -> dict[str, Any]:
             "authenticated": False,
             "message": f"Authentication check failed: {str(e)}"
         }
+
+
+@router.get("/price", response_model=PriceResponse)
+async def get_price(symbol: str, _: Any = Depends(_verify_jwt)) -> PriceResponse:
+    """Get price data using internal JWT token."""
+    redis = get_redis()
+    key = f"fx:{symbol}"
+    raw = await redis.get(key)
+    await redis.close()
+    if not raw:
+        raise HTTPException(status_code=404, detail="Symbol not found")
+    data = json.loads(raw)
+    tick = Tick(**data)
+    price = (tick.bid + tick.ask) / 2
+    return PriceResponse(symbol=tick.symbol, price=price, timestamp=tick.timestamp)
+
+
+@router.get("/ticks", response_model=list[Tick])
+async def get_ticks(
+    symbol: str,
+    since: Union[str, None] = None,
+    _: Any = Depends(_verify_jwt),
+) -> list[Tick]:
+    """Return cached ticks for symbol using internal JWT token."""
+    redis = get_redis()
+    key = f"ticks:{symbol}"
+    raw_ticks = await redis.lrange(key, 0, -1)
+    await redis.close()
+    if not raw_ticks:
+        raise HTTPException(status_code=404, detail="No ticks found")
+    ticks = [Tick(**json.loads(item)) for item in raw_ticks]
+    if since:
+        try:
+            cutoff = datetime.fromisoformat(since.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid since timestamp")
+        ticks = [
+            t
+            for t in ticks
+            if datetime.fromisoformat(t.timestamp.replace("Z", "+00:00")) >= cutoff
+        ]
+    return ticks

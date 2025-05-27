@@ -42,7 +42,7 @@ const fetchRealData = async (symbol: string): Promise<MarketData | null> => {
       return null;
     }
 
-    const response = await fetch(`${apiBaseUrl}/api/auth/price?symbol=${symbol}`, {
+    const response = await fetch(`${apiBaseUrl}/api/auth/market/price?symbol=${symbol}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
