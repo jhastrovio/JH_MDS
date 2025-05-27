@@ -1,5 +1,7 @@
-from mangum import Mangum
-from app.app import app    # ← grab the FastAPI instance you just created
+# api/index.py
+from fastapi import FastAPI
+from app.auth.router import router as auth_router
 
-# ensure the full /api/... path is preserved
-handler = Mangum(app)
+app = FastAPI(title="JH Market Data API")
+# Mount your auth router under /api/auth
+app.include_router(auth_router, prefix="/api/auth")

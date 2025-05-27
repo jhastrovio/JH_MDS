@@ -50,7 +50,7 @@ class SaxoTick(BaseModel):
 async def _get_oauth_token() -> str:
     """Get valid OAuth token from the OAuth client."""
     try:
-        from api.oauth import oauth_client
+        from app.oauth import oauth_client
         return await oauth_client.get_valid_token()
     except ImportError:
         # Fallback to environment variable for standalone testing
