@@ -3,10 +3,6 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || '',
   },
-  async rewrites() {
-    // No need for rewrites since API will be on same domain
-    return [];
-  },
   async headers() {
     return [
       {

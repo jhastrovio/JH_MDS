@@ -1,6 +1,0 @@
-{
-  "name": "jh-market-data-service",
-  "version": "1.0.0",
-  "private": true,
-  "workspaces": ["frontend"]
-} 
