@@ -8,4 +8,5 @@ app.include_router(auth_router, prefix="/api/auth")
 
 import logging
 for r in app.router.routes:
-    logging.error(f"🚩 Route registered: {r.name} → {r.path}")
+    print(f"🚩 Route registered: {r.name} → {r.path}")
+
