@@ -4,7 +4,7 @@
 Write-Host "📊 Starting Market Data Ingestion Service..." -ForegroundColor Green
 
 # Check if environment is set up
-if (-not (Test-Path ".env.local")) {
+if (-not (Test-Path ".env")) {
     Write-Host "❌ Environment not configured! Run .\setup-environment.ps1 first" -ForegroundColor Red
     exit 1
 }
@@ -14,10 +14,10 @@ Write-Host "📦 Activating Python virtual environment..." -ForegroundColor Yell
 & .\.venv\Scripts\Activate.ps1
 
 # Check if SaxoBank API token is configured
-$envContent = Get-Content ".env.local" -Raw
+$envContent = Get-Content ".env" -Raw
 if ($envContent -match "SAXO_API_TOKEN=your-saxo-api-token-here") {
     Write-Host "⚠️  WARNING: SaxoBank API token not configured!" -ForegroundColor Yellow
-    Write-Host "   Edit .env.local and add your real API token from https://www.developer.saxo/" -ForegroundColor Gray
+    Write-Host "   Edit .env and add your real API token from https://www.developer.saxo/" -ForegroundColor Gray
     Write-Host "   The service will fail until you provide a valid token." -ForegroundColor Gray
     Write-Host ""
 }
@@ -51,7 +51,7 @@ async def main():
         await stream_quotes(FX_SYMBOLS, redis)
     except Exception as e:
         print(f"❌ Error: {e}")
-        print("💡 Check your SAXO_API_TOKEN in .env.local")
+        print("💡 Check your SAXO_API_TOKEN in .env")
     finally:
         await redis.close()
 

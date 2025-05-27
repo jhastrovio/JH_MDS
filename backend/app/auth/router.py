@@ -379,3 +379,36 @@ async def get_ticks(
             if datetime.fromisoformat(t.timestamp.replace("Z", "+00:00")) >= cutoff
         ]
     return ticks
+
+
+@router.get("/debug/redis")
+async def debug_redis() -> dict[str, Any]:
+    """Debug endpoint to check what's in Redis."""
+    redis = get_redis()
+    try:
+        # Get all fx: keys
+        fx_keys = []
+        async for key in redis.scan_iter(match="fx:*"):
+            fx_keys.append(key.decode() if isinstance(key, bytes) else key)
+        
+        # Get all ticks: keys  
+        tick_keys = []
+        async for key in redis.scan_iter(match="ticks:*"):
+            tick_keys.append(key.decode() if isinstance(key, bytes) else key)
+            
+        # Sample some data
+        sample_data = {}
+        for key in fx_keys[:5]:  # Sample first 5
+            raw = await redis.get(key)
+            if raw:
+                sample_data[key] = json.loads(raw)
+                
+        return {
+            "fx_keys_count": len(fx_keys),
+            "fx_keys": fx_keys,
+            "tick_keys_count": len(tick_keys), 
+            "tick_keys": tick_keys,
+            "sample_data": sample_data
+        }
+    finally:
+        await redis.close()
