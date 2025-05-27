@@ -23,7 +23,8 @@ except Exception as e:
     OAUTH_AVAILABLE = False
     print(f"OAuth not available: {e}")
 
-router = APIRouter(prefix="/api")
+# all paths here (e.g. "/login", "/callback", "/status") will live under "/auth"
+router = APIRouter(prefix="/auth")
 
 _bearer = HTTPBearer()
 
@@ -130,7 +131,7 @@ async def debug_info() -> dict[str, Any]:
     }
 
 
-@router.get("/auth/login")
+@router.get("/login")
 async def initiate_oauth() -> dict[str, str]:
     """Initiate OAuth flow with SaxoBank."""
     if not OAUTH_AVAILABLE:
@@ -152,7 +153,7 @@ async def initiate_oauth() -> dict[str, str]:
         raise HTTPException(status_code=500, detail=f"OAuth setup failed: {str(e)}")
 
 
-@router.get("/auth/callback")
+@router.get("/callback")
 async def oauth_callback(
     code: str = Query(..., description="Authorization code from SaxoBank"),
     state: str = Query(..., description="State parameter for validation")
@@ -283,7 +284,7 @@ async def oauth_callback(
         return HTMLResponse(content=html_content, status_code=500)
 
 
-@router.get("/auth/status")
+@router.get("/status")
 async def auth_status() -> dict[str, Any]:
     """Check current authentication status."""
     if not OAUTH_AVAILABLE:
