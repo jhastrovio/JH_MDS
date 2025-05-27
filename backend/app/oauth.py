@@ -114,7 +114,7 @@ class SaxoOAuth:
                 print(f"SAXO OAUTH: Token endpoint response status: {response.status}") # DIAGNOSTIC LOG
                 print(f"SAXO OAUTH: Token endpoint raw response body: {raw_response_text}") # DIAGNOSTIC LOG
 
-                if response.status != 200:
+                if response.status not in [200, 201]:
                     # Use raw_response_text directly as error_details if JSON parsing fails or if it's already the detail
                     error_details_to_raise = raw_response_text
                     try:
