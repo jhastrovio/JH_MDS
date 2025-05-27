@@ -105,60 +105,50 @@ class SaxoOAuth:
         headers = {
             "Content-Type": "application/x-www-form-urlencoded"
         }
-        
+
+        print(f"SAXO OAUTH: Attempting token exchange. Request data: {token_data}") # DIAGNOSTIC LOG
+
         async with aiohttp.ClientSession() as session:
-            async with session.post(
-                SAXO_TOKEN_URL, 
-                data=token_data, 
-                headers=headers
-            ) as response:
-                response_text = await response.text()
-                try:
-                    token_response = json.loads(response_text)
-                except json.JSONDecodeError:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Invalid token response: {response_text}"
-                    )
-                
-                # Only raise error if we get a non-200 status code
+            async with session.post(SAXO_TOKEN_URL, data=token_data, headers=headers) as response:
+                raw_response_text = await response.text() # DIAGNOSTIC LOG - get raw text
+                print(f"SAXO OAUTH: Token endpoint response status: {response.status}") # DIAGNOSTIC LOG
+                print(f"SAXO OAUTH: Token endpoint raw response body: {raw_response_text}") # DIAGNOSTIC LOG
+
                 if response.status != 200:
+                    # Use raw_response_text directly as error_details if JSON parsing fails or if it's already the detail
+                    error_details_to_raise = raw_response_text
+                    try:
+                        # Attempt to parse as JSON in case Saxo sends a JSON error structure
+                        # even with a non-200, but we prioritize raw_response_text if it's already what we saw.
+                        json_error = json.loads(raw_response_text)
+                        if isinstance(json_error, dict): # If it's a structured error
+                            error_details_to_raise = json_error
+                    except json.JSONDecodeError:
+                        pass # Keep raw_response_text
+
                     raise HTTPException(
-                        status_code=response.status, 
-                        detail=f"Token exchange failed: {response_text}"
+                        status_code=response.status,
+                        detail=f"Token exchange failed: {error_details_to_raise}"
                     )
                 
-                # Validate required fields
-                if not isinstance(token_response, dict):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Invalid token response format: {response_text}"
-                    )
-                
-                if "access_token" not in token_response:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Missing access_token in response: {response_text}"
-                    )
-        
-        # Create token object
-        expires_in = token_response.get("expires_in", 3600)  # Default 1 hour
-        expires_at = datetime.now() + timedelta(seconds=expires_in)
-        
-        token = SaxoToken(
-            access_token=token_response["access_token"],
-            refresh_token=token_response.get("refresh_token", ""),
-            expires_at=expires_at,
-            token_type=token_response.get("token_type", "Bearer")
-        )
-        
-        # Store current token
-        self._current_token = token
+                # If response.status IS 200:
+                try:
+                    token_json = json.loads(raw_response_text) # Parse from the raw text we already fetched
+                except json.JSONDecodeError as e:
+                    print(f"SAXO OAUTH: Failed to decode JSON from successful (200) response. Error: {e}") # DIAGNOSTIC LOG
+                    raise HTTPException(status_code=500, detail=f"Failed to decode token JSON from Saxo: {e}. Raw response: {raw_response_text}")
+
+                try:
+                    # Create and store token
+                    self._current_token = SaxoToken.model_validate(token_json)
+                except Exception as e:
+                    print(f"SAXO OAUTH: Failed to validate token. Error: {e}")
+                    raise HTTPException(status_code=500, detail=f"Failed to validate token: {e}")
         
         # Clean up state
         del self._state_store[state]
         
-        return token
+        return self._current_token
     
     async def refresh_token(self, refresh_token: str) -> SaxoToken:
         """Refresh access token using refresh token."""
