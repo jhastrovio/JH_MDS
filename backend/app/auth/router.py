@@ -630,3 +630,113 @@ async def debug_oauth_config() -> dict[str, Any]:
             "error": f"Failed to get OAuth config: {str(e)}",
             "oauth_available": False
         }
+
+
+@router.get("/debug/market-data-token")
+async def debug_market_data_token() -> dict[str, Any]:
+    """Debug endpoint to test if market data service can access OAuth token."""
+    if not OAUTH_AVAILABLE:
+        return {
+            "error": "OAuth not configured",
+            "oauth_available": False
+        }
+    
+    try:
+        # Simulate what the market data service does
+        from storage.redis_client import get_redis
+        redis = get_redis()
+        try:
+            token_data_raw = await redis.get("saxo:current_token")
+            if not token_data_raw:
+                return {
+                    "status": "no_token",
+                    "message": "No token found in Redis for market data service"
+                }
+            
+            token_data = json.loads(token_data_raw)
+            access_token = token_data.get("access_token")
+            
+            if not access_token:
+                return {
+                    "status": "invalid_token",
+                    "message": "Token data in Redis missing access_token"
+                }
+            
+            return {
+                "status": "success",
+                "message": "Market data service can access OAuth token",
+                "token_preview": access_token[:20] + "..." if access_token else None,
+                "expires_at": token_data.get("expires_at"),
+                "token_type": token_data.get("token_type")
+            }
+        finally:
+            await redis.close()
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "message": "Failed to test market data token access"
+        }
+
+
+@router.post("/debug/test-saxo-api")
+async def debug_test_saxo_api() -> dict[str, Any]:
+    """Debug endpoint to test SaxoBank API connection and store sample data."""
+    if not OAUTH_AVAILABLE:
+        return {
+            "error": "OAuth not configured",
+            "oauth_available": False
+        }
+    
+    try:
+        # Get valid token
+        token = await oauth_client.get_valid_token()
+        
+        # Test a simple SaxoBank API call
+        import aiohttp
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        
+        # Try to get EUR-USD price from SaxoBank
+        async with aiohttp.ClientSession() as session:
+            url = "https://gateway.saxobank.com/openapi/trade/v1/prices?AssetType=FxSpot&Uic=21"
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    
+                    # Store sample data in Redis for testing
+                    from storage.redis_client import get_redis
+                    redis = get_redis()
+                    try:
+                        sample_tick = {
+                            "symbol": "EUR-USD",
+                            "bid": data.get("Quote", {}).get("Bid", 1.0500),
+                            "ask": data.get("Quote", {}).get("Ask", 1.0502),
+                            "timestamp": "2025-01-28T12:00:00Z"
+                        }
+                        
+                        await redis.set("fx:EUR-USD", json.dumps(sample_tick), ex=300)
+                        
+                        return {
+                            "status": "success",
+                            "message": "SaxoBank API test successful",
+                            "api_response_status": response.status,
+                            "sample_data_stored": sample_tick
+                        }
+                    finally:
+                        await redis.close()
+                else:
+                    error_text = await response.text()
+                    return {
+                        "status": "api_error",
+                        "message": f"SaxoBank API returned {response.status}",
+                        "error": error_text
+                    }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__
+        }

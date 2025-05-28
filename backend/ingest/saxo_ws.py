@@ -48,15 +48,34 @@ class SaxoTick(BaseModel):
 
 
 async def _get_oauth_token() -> str:
-    """Get valid OAuth token from the OAuth client."""
+    """Get valid OAuth token from the OAuth client or Redis."""
     try:
+        # First try to get token from OAuth client (if running in same process)
         from app.oauth import oauth_client
         return await oauth_client.get_valid_token()
     except ImportError:
+        # If OAuth client not available, try to load token from Redis
+        try:
+            from storage.redis_client import get_redis
+            redis = get_redis()
+            try:
+                token_data_raw = await redis.get("saxo:current_token")
+                if token_data_raw:
+                    token_data = json.loads(token_data_raw)
+                    access_token = token_data.get("access_token")
+                    if access_token:
+                        print(f"SAXO WS: Using OAuth token from Redis")
+                        return access_token
+            finally:
+                await redis.close()
+        except Exception as e:
+            print(f"SAXO WS: Failed to load token from Redis: {e}")
+        
         # Fallback to environment variable for standalone testing
         token = os.environ.get("SAXO_API_TOKEN")
         if not token:
-            raise RuntimeError("No OAuth client available and SAXO_API_TOKEN not set")
+            raise RuntimeError("No OAuth token available: OAuth client not accessible, no token in Redis, and SAXO_API_TOKEN not set")
+        print(f"SAXO WS: Using token from environment variable")
         return token
 
 
