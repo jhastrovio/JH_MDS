@@ -1,35 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, Minus, RefreshCw } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, RefreshCw, AlertCircle } from 'lucide-react';
 import { type MarketData, FX_MAJORS, RATES, INDICES } from '@/types/market-data';
 import MiniSparkline from './MiniSparkline';
-
-// Mock data generator for demo purposes
-const generateMockData = (symbol: string): MarketData => {
-  const basePrice = Math.random() * 2 + 0.5; // Random base between 0.5-2.5
-  const bid = basePrice;
-  const ask = bid + 0.0002 + Math.random() * 0.0008; // Spread 0.2-1.0 pips
-  const change = (Math.random() - 0.5) * 0.02; // ±1% max change
-  const changePercent = (change / bid) * 100;
-  
-  // Generate sparkline data (last 20 points)
-  const sparklineData = Array.from({ length: 20 }, (_, i) => 
-    bid + (Math.random() - 0.5) * 0.01
-  );
-
-  return {
-    symbol,
-    bid: Number(bid.toFixed(5)),
-    ask: Number(ask.toFixed(5)),
-    timestamp: new Date().toISOString(),
-    change: Number(change.toFixed(5)),
-    changePercent: Number(changePercent.toFixed(2)),
-    dayHigh: Number((bid + Math.random() * 0.01).toFixed(5)),
-    dayLow: Number((bid - Math.random() * 0.01).toFixed(5)),
-    sparklineData,
-  };
-};
 
 // Fetch real data from backend API
 const fetchRealData = async (symbol: string): Promise<MarketData | null> => {
@@ -38,7 +12,7 @@ const fetchRealData = async (symbol: string): Promise<MarketData | null> => {
     const token = localStorage.getItem('saxo_access_token');
     
     if (!apiBaseUrl || !token) {
-      console.warn(`Missing API URL or token for ${symbol}, using mock data`);
+      console.warn(`Missing API URL or token for ${symbol}`);
       return null;
     }
 
@@ -57,7 +31,7 @@ const fetchRealData = async (symbol: string): Promise<MarketData | null> => {
     const priceData = await response.json();
     
     // Convert backend PriceResponse to MarketData format
-    // Note: We don't have all fields from the backend, so we'll use the price for both bid/ask
+    // Note: We don't have all fields from the backend, so we'll simulate bid/ask from price
     const mockSparkline = Array.from({ length: 20 }, () => priceData.price + (Math.random() - 0.5) * 0.01);
     
     return {
@@ -77,51 +51,81 @@ const fetchRealData = async (symbol: string): Promise<MarketData | null> => {
   }
 };
 
-// Symbols to fetch real data for (proof of concept)
-const REAL_DATA_SYMBOLS = ['EUR-USD', 'GBP-USD'];
+// Symbols that have real data available
+const REAL_DATA_SYMBOLS = ['EUR-USD', 'GBP-USD', 'USD-JPY', 'AUD-USD', 'USD-CHF', 'USD-CAD', 'NZD-USD'];
 
-// Generate data for a symbol (real or mock)
-const generateDataForSymbol = async (symbol: string): Promise<MarketData> => {
+// Generate data for a symbol (real data only)
+const generateDataForSymbol = async (symbol: string): Promise<MarketData | null> => {
   if (REAL_DATA_SYMBOLS.includes(symbol)) {
-    const realData = await fetchRealData(symbol);
-    if (realData) {
-      return realData;
-    }
+    return await fetchRealData(symbol);
   }
-  // Fallback to mock data
-  return generateMockData(symbol);
+  // No fallback - return null if no real data available
+  return null;
 };
 
 export default function Watchlist() {
   const [watchlistData, setWatchlistData] = useState<MarketData[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'fx' | 'rates' | 'indices'>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [dataErrors, setDataErrors] = useState<string[]>([]);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
-  // Initialize with mock data
+  // Load initial data
   useEffect(() => {
     const loadInitialData = async () => {
+      setIsRefreshing(true);
       const allSymbols = [...FX_MAJORS, ...RATES, ...INDICES];
       const dataPromises = allSymbols.map(generateDataForSymbol);
-      const mockData = await Promise.all(dataPromises);
-      setWatchlistData(mockData);
+      const results = await Promise.all(dataPromises);
+      
+      // Filter out null results and track errors
+      const validData: MarketData[] = [];
+      const errors: string[] = [];
+      
+      results.forEach((result, index) => {
+        if (result) {
+          validData.push(result);
+        } else {
+          errors.push(allSymbols[index]);
+        }
+      });
+      
+      setWatchlistData(validData);
+      setDataErrors(errors);
+      setLastUpdate(new Date());
+      setIsRefreshing(false);
     };
     
     loadInitialData();
   }, []);
 
-  // Simulate live updates
+  // Live updates
   useEffect(() => {
     const interval = setInterval(async () => {
       const allSymbols = [...FX_MAJORS, ...RATES, ...INDICES];
       const dataPromises = allSymbols.map(generateDataForSymbol);
-      const updatedData = await Promise.all(dataPromises);
+      const results = await Promise.all(dataPromises);
+      
+      // Filter out null results and track errors
+      const validData: MarketData[] = [];
+      const errors: string[] = [];
+      
+      results.forEach((result, index) => {
+        if (result) {
+          validData.push(result);
+        } else {
+          errors.push(allSymbols[index]);
+        }
+      });
       
       setWatchlistData(prev => 
-        updatedData.map((newItem, index) => ({
+        validData.map((newItem, index) => ({
           ...newItem,
-          sparklineData: [...(prev[index]?.sparklineData?.slice(1) || []), newItem.bid], // Add latest price to sparkline
+          sparklineData: [...(prev.find(p => p.symbol === newItem.symbol)?.sparklineData?.slice(1) || []), newItem.bid],
         }))
       );
+      setDataErrors(errors);
+      setLastUpdate(new Date());
     }, 3000); // Update every 3 seconds
 
     return () => clearInterval(interval);
@@ -132,8 +136,23 @@ export default function Watchlist() {
     try {
       const allSymbols = [...FX_MAJORS, ...RATES, ...INDICES];
       const dataPromises = allSymbols.map(generateDataForSymbol);
-      const refreshedData = await Promise.all(dataPromises);
-      setWatchlistData(refreshedData);
+      const results = await Promise.all(dataPromises);
+      
+      // Filter out null results and track errors
+      const validData: MarketData[] = [];
+      const errors: string[] = [];
+      
+      results.forEach((result, index) => {
+        if (result) {
+          validData.push(result);
+        } else {
+          errors.push(allSymbols[index]);
+        }
+      });
+      
+      setWatchlistData(validData);
+      setDataErrors(errors);
+      setLastUpdate(new Date());
     } finally {
       setIsRefreshing(false);
     }
@@ -171,7 +190,14 @@ export default function Watchlist() {
   return (
     <div className="market-card">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-foreground">Market Watchlist</h2>
+        <div className="flex items-center space-x-4">
+          <h2 className="text-xl font-semibold text-foreground">Market Watchlist</h2>
+          {lastUpdate && (
+            <span className="text-sm text-muted-foreground">
+              Last update: {lastUpdate.toLocaleTimeString()}
+            </span>
+          )}
+        </div>
         
         <div className="flex items-center space-x-4">
           {/* Category Filter */}
@@ -207,6 +233,18 @@ export default function Watchlist() {
           </button>
         </div>
       </div>
+
+      {/* Data Status */}
+      {dataErrors.length > 0 && (
+        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="h-4 w-4 text-yellow-600" />
+            <span className="text-sm text-yellow-800">
+              No data available for: {dataErrors.join(', ')}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Watchlist Table */}
       <div className="overflow-x-auto">
@@ -253,7 +291,9 @@ export default function Watchlist() {
 
       {filteredData.length === 0 && (
         <div className="text-center py-8 text-muted-foreground">
-          <p>No data available for {selectedCategory} instruments.</p>
+          <AlertCircle className="mx-auto h-8 w-8 mb-2" />
+          <p>No real-time data available for {selectedCategory} instruments.</p>
+          <p className="text-sm mt-1">Check your API connection and authentication.</p>
         </div>
       )}
     </div>

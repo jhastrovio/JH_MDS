@@ -412,3 +412,65 @@ async def debug_redis() -> dict[str, Any]:
         }
     finally:
         await redis.close()
+
+
+@router.get("/service/status")
+async def get_service_status() -> dict[str, Any]:
+    """Get real-time market data service status."""
+    redis = get_redis()
+    try:
+        # Get service status
+        status_raw = await redis.get("service:market_data:status")
+        heartbeat_raw = await redis.get("service:market_data:heartbeat")
+        
+        # Parse status
+        service_status = "unknown"
+        restart_count = 0
+        last_update = None
+        symbols = []
+        
+        if status_raw:
+            try:
+                # Simple parsing since we stored it as string representation
+                status_str = status_raw.replace('"', "'")
+                if "'status': '" in status_str:
+                    service_status = status_str.split("'status': '")[1].split("'")[0]
+                if "'restart_count': " in status_str:
+                    restart_count = int(status_str.split("'restart_count': ")[1].split(",")[0])
+                if "'timestamp': '" in status_str:
+                    last_update = status_str.split("'timestamp': '")[1].split("'")[0]
+            except:
+                pass
+        
+        # Check heartbeat
+        heartbeat_age = None
+        if heartbeat_raw:
+            try:
+                from datetime import datetime, timezone
+                heartbeat_time = datetime.fromisoformat(heartbeat_raw.replace('Z', '+00:00'))
+                current_time = datetime.now(timezone.utc)
+                heartbeat_age = (current_time - heartbeat_time).total_seconds()
+            except:
+                pass
+        
+        # Determine overall health
+        is_healthy = (
+            service_status in ["running", "starting"] and
+            heartbeat_age is not None and
+            heartbeat_age < 120  # Less than 2 minutes old
+        )
+        
+        return {
+            "service_status": service_status,
+            "is_healthy": is_healthy,
+            "restart_count": restart_count,
+            "last_update": last_update,
+            "heartbeat_age_seconds": heartbeat_age,
+            "symbols_monitored": [
+                'EUR-USD', 'GBP-USD', 'USD-JPY', 'AUD-USD', 
+                'USD-CHF', 'USD-CAD', 'NZD-USD'
+            ]
+        }
+        
+    finally:
+        await redis.close()

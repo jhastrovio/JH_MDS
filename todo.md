@@ -8,13 +8,17 @@
 - [x] Implement /api/ticks endpoint for historical data
 - [x] Implement /api/snapshot endpoint for storage
 - [x] Add JWT authentication middleware
+- [x] Add service status monitoring endpoint
 
 ### Data Ingestion
 - [x] Complete Saxo WebSocket implementation (fixed syntax errors)
+- [x] Add enhanced market data service with health monitoring
+- [x] Implement automatic reconnection and error handling
+- [x] Add service status tracking in Redis
+- [x] Create monitoring and management scripts
 - [ ] Add Yahoo Finance WebSocket client for equity indices
 - [ ] Add Investing.com polling client for rates
 - [ ] Implement fallback data sources
-- [ ] Add error handling and reconnection logic
 
 ### Frontend (Next.js)
 - [x] Set up Next.js 14 project with app router
@@ -56,10 +60,11 @@
 ## Lower Priority (Enhancement & Polish)
 
 ### Observability
+- [x] Add service health monitoring
+- [x] Implement Redis heartbeat monitoring
+- [x] Add basic logging with file output
 - [ ] Add Sentry integration
 - [ ] Set up Vercel Analytics
-- [ ] Implement Redis heartbeat monitoring
-- [ ] Add basic logging
 - [ ] Set up performance monitoring
 
 ### Export Features
@@ -84,6 +89,7 @@
 ✅ Python version requirement set (3.12)
 ✅ Initial Redis client implementation
 ✅ Complete Saxo WebSocket client
+✅ Enhanced market data service with monitoring
 ✅ Complete OneDrive storage integration
 ✅ API contract defined in OpenAPI spec
 ✅ Full FastAPI backend implementation
@@ -93,12 +99,34 @@
 ✅ Connection status monitoring
 ✅ Comprehensive TypeScript type system
 ✅ Responsive design system
+✅ Service health monitoring and status tracking
+
+## Real-time Data Ingestion - ENHANCED! 🚀
+
+**New Features Added:**
+- ✅ **Enhanced Market Data Service** (`backend/ingest/market_data_service.py`)
+  - Automatic reconnection with exponential backoff
+  - Health monitoring with Redis heartbeat
+  - Service status tracking
+  - Graceful shutdown handling
+  - Comprehensive logging to file
+
+- ✅ **Service Monitoring**
+  - New API endpoint: `/api/service/status`
+  - PowerShell monitoring script: `check-service-status.ps1`
+  - Enhanced startup script: `start-market-data-service.ps1`
+
+- ✅ **Improved Reliability**
+  - Redis connection testing before startup
+  - Automatic restart on failures (up to 10 attempts)
+  - Service status persistence in Redis
+  - Real-time health monitoring
 
 ## Next Steps
-1. Install Node.js and run the frontend (`npm install && npm run dev`)
-2. Set up environment variables for both backend and frontend
-3. Integrate WebSocket connection between frontend and backend
-4. Deploy to Vercel with proper environment configuration
+1. **Start the enhanced service**: `.\start-market-data-service.ps1`
+2. **Monitor service health**: `.\check-service-status.ps1`
+3. **View service logs**: `Get-Content market_data_service.log -Tail 20`
+4. **Check API status**: Visit `http://localhost:8000/api/service/status`
 
 ## Frontend Completion Status: 95% ✅
 
