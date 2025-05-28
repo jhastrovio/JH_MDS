@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from app.auth.router import router as auth_router
+from .logger import logger  # Use logger from logger.py to avoid circular import
 
 app = FastAPI(title="JH Market Data API")
 
@@ -7,8 +8,6 @@ app = FastAPI(title="JH Market Data API")
 # will live at "/api/price", "/api/auth/login", etc.
 app.include_router(auth_router, prefix="/api")
 
-import logging
-
 # Log every route FastAPI knows about
 for route in app.router.routes:
-    logging.error(f"🚩 Route registered: {route.name} → {route.path}")
+    logger.error(f"🚩 Route registered: {route.name} → {route.path}")

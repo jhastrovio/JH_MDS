@@ -14,7 +14,7 @@ import requests
 from market_data.models import PriceResponse, Tick
 from storage.redis_client import get_redis
 from storage.on_drive import upload_table
-from ..app import logger # Assuming logger is configured in app.py or a similar central place
+from ..logger import logger  # Use logger from logger.py to avoid circular import
 
 # Optional OAuth import - don't break if it fails
 try:
@@ -855,76 +855,3 @@ async def get_service_status() -> dict[str, Any]:
         
     finally:
         await redis.close()
-
-
-@router.get("/debug/status")
-async def consolidated_debug_status() -> dict[str, Any]:
-    """Consolidated debug endpoint for OAuth, Redis, and token status."""
-    status = {
-        "oauth_available": OAUTH_AVAILABLE,
-        "environment_vars": {
-            "JWT_SECRET": "SET" if os.environ.get("JWT_SECRET") else "NOT_SET",
-            "REDIS_URL": "SET" if os.environ.get("REDIS_URL") else "NOT_SET",
-            "SAXO_APP_KEY": "SET" if os.environ.get("SAXO_APP_KEY") else "NOT_SET",
-        },
-        "token": None,
-        "redis": None,
-        "oauth_config": None,
-    }
-
-    # Token info
-    if OAUTH_AVAILABLE:
-        try:
-            stored_token = await oauth_client._load_token()
-            if stored_token:
-                status["token"] = {
-                    "status": "found",
-                    "expires_at": stored_token.expires_at.isoformat(),
-                    "is_expired": stored_token.is_expired,
-                    "has_refresh_token": bool(stored_token.refresh_token),
-                    "token_type": stored_token.token_type,
-                    "access_token_preview": stored_token.access_token[:20] + "..." if stored_token.access_token else None
-                }
-            else:
-                status["token"] = {"status": "no_token"}
-        except Exception as e:
-            status["token"] = {"status": "error", "error": str(e)}
-    else:
-        status["token"] = {"status": "oauth_not_configured"}
-
-    # Redis info
-    try:
-        redis = get_redis()
-        await redis.ping()
-        fx_keys = []
-        async for key in redis.scan_iter(match="fx:*"):
-            fx_keys.append(key.decode() if isinstance(key, bytes) else key)
-        tick_keys = []
-        async for key in redis.scan_iter(match="ticks:*"):
-            tick_keys.append(key.decode() if isinstance(key, bytes) else key)
-        await redis.close()
-        status["redis"] = {
-            "status": "ok",
-            "fx_keys_count": len(fx_keys),
-            "tick_keys_count": len(tick_keys)
-        }
-    except Exception as e:
-        status["redis"] = {"status": "error", "error": str(e)}
-
-    # OAuth config
-    if OAUTH_AVAILABLE:
-        try:
-            config = oauth_client.config
-            status["oauth_config"] = {
-                "client_id": config.client_id[:10] + "..." if config.client_id else None,
-                "redirect_uri": config.redirect_uri,
-                "has_client_secret": bool(config.client_secret),
-                "auth_url": "https://live.logonvalidation.net/authorize",
-                "token_url": "https://live.logonvalidation.net/token"
-            }
-        except Exception as e:
-            status["oauth_config"] = {"error": str(e)}
-    else:
-        status["oauth_config"] = {"status": "oauth_not_configured"}
-
-    return status
