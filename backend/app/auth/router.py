@@ -679,7 +679,7 @@ async def debug_market_data_token() -> dict[str, Any]:
         }
 
 
-@router.post("/debug/test-saxo-api")
+@router.get("/debug/test-saxo-api")
 async def debug_test_saxo_api() -> dict[str, Any]:
     """Debug endpoint to test SaxoBank API connection and store sample data."""
     if not OAUTH_AVAILABLE:
