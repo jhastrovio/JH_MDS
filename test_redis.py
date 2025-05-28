@@ -1,13 +1,9 @@
+import sys
 import asyncio
 import json
-import sys
-from pathlib import Path
 from datetime import datetime, timezone
-
-# Add backend directory to path for imports
-BACKEND_DIR = Path(__file__).resolve().parent / "backend"
-sys.path.insert(0, str(BACKEND_DIR))
-
+from pathlib import Path
+sys.path.insert(0, str(Path('backend')))
 from storage.redis_client import get_redis
 
 async def test_redis():
@@ -49,5 +45,35 @@ async def test_redis():
     finally:
         await redis.aclose()
 
+def print_status():
+    async def check_status():
+        redis = get_redis()
+        try:
+            status = await redis.get('service:market_data:status')
+            heartbeat = await redis.get('service:market_data:heartbeat')
+            print(f'Final status: {status}')
+            print(f'Last heartbeat: {heartbeat}')
+        finally:
+            await redis.aclose()
+    asyncio.run(check_status())
+
+async def check_live_data():
+    redis = get_redis()
+    try:
+        for symbol in ["EUR-USD", "GBP-USD"]:
+            val = await redis.get(f"fx:{symbol}")
+            if val:
+                data = json.loads(val)
+                print(f"🔎 {symbol} from Redis: {data}")
+            else:
+                print(f"⚠️  No data found in Redis for {symbol}")
+    finally:
+        await redis.aclose()
+
 if __name__ == "__main__":
-    asyncio.run(test_redis()) 
+    if len(sys.argv) > 1 and sys.argv[1] == "status":
+        print_status()
+    elif len(sys.argv) > 1 and sys.argv[1] == "live":
+        asyncio.run(check_live_data())
+    else:
+        asyncio.run(test_redis())
