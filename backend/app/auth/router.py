@@ -2,17 +2,19 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Union
+from typing import Any, Union, Optional
 
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.responses import RedirectResponse, HTMLResponse
 from jose import JWTError, jwt
+import requests
 
 from market_data.models import PriceResponse, Tick
 from storage.redis_client import get_redis
 from storage.on_drive import upload_table
+from ..app import logger # Assuming logger is configured in app.py or a similar central place
 
 # Optional OAuth import - don't break if it fails
 try:
@@ -679,64 +681,122 @@ async def debug_market_data_token() -> dict[str, Any]:
         }
 
 
-@router.get("/debug/test-saxo-api")
-async def debug_test_saxo_api() -> dict[str, Any]:
-    """Debug endpoint to test SaxoBank API connection and store sample data."""
-    if not OAUTH_AVAILABLE:
-        return {
-            "error": "OAuth not configured",
-            "oauth_available": False
-        }
+async def get_valid_access_token(request: Request) -> Optional[str]:
+    """
+    Retrieves a valid access token.
+    Placeholder: Implement your actual logic to retrieve the token,
+    e.g., from Redis, session, or request state.
+    """
+    access_token: Optional[str] = None
     
+    # Check if token is in request state (if populated by a middleware)
+    if hasattr(request.app.state, 'saxo_access_token') and request.app.state.saxo_access_token:
+        access_token = request.app.state.saxo_access_token
+        logger.info("Retrieved access token from request.app.state.saxo_access_token")
+    
+    # Fallback: Check session (example for FastAPI sessions)
+    if not access_token and hasattr(request, "session") and request.session:
+        stored_token_info = request.session.get("saxo_access_token")
+        if isinstance(stored_token_info, str): # Assuming token is stored as a string
+            access_token = stored_token_info
+            logger.info("Retrieved access token from session")
+        elif isinstance(stored_token_info, dict) and "access_token" in stored_token_info:
+            access_token = stored_token_info["access_token"]
+            logger.info("Retrieved access token from session dictionary")
+
+    # Fallback: Check Redis (example, assuming redis_client is on app.state and user_id is available)
+    # This part is highly speculative and needs to match your actual implementation
+    if not access_token and hasattr(request.app.state, 'redis_client') and hasattr(request.app.state, 'user_id'):
+        try:
+            token_from_redis = await request.app.state.redis_client.get(f"user_token:{request.app.state.user_id}")
+            if token_from_redis:
+                access_token = token_from_redis.decode('utf-8') if isinstance(token_from_redis, bytes) else str(token_from_redis)
+                logger.info("Retrieved access token from Redis")
+        except Exception as e:
+            logger.warning(f"Could not retrieve token from Redis: {e}")
+
+    if not access_token:
+        logger.warning("Access token could not be retrieved by get_valid_access_token.")
+    
+    return access_token
+
+
+@router.get("/test-saxo-api")
+async def test_saxo_api(access_token: Optional[str] = Depends(get_valid_access_token)):
+    # Test API call to Saxo
+    # This function is for testing connectivity and authentication with Saxo API
+    # It now uses the /root/sessions/capabilities endpoint for basic diagnostics.
+
+    if not access_token:
+        logger.error("No access token available for Saxo API test call. Please ensure you are authenticated.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication token not available. Please authenticate/login first and ensure the token is correctly passed or stored."
+        )
+    
+    logger.info(f"Using access token for Saxo API test: {access_token[:20]}...") # Log only a portion for security
+
     try:
-        # Get valid token
-        token = await oauth_client.get_valid_token()
+        diagnostic_url = "https://gateway.saxobank.com/openapi/root/sessions/capabilities"
         
-        # Test a simple SaxoBank API call
-        import aiohttp
         headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
+            "Authorization": f"Bearer {access_token}",
+            "Accept": "application/json"
         }
         
-        # Try to get EUR-USD price from SaxoBank
-        async with aiohttp.ClientSession() as session:
-            url = "https://gateway.saxobank.com/openapi/trade/v1/infoprices/21/FxSpot"
-            async with session.get(url, headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    
-                    # Store sample data in Redis for testing
-                    from storage.redis_client import get_redis
-                    redis = get_redis()
-                    try:
-                        sample_tick = {
-                            "symbol": "EUR-USD",
-                            "bid": data.get("Quote", {}).get("Bid", 1.0500),
-                            "ask": data.get("Quote", {}).get("Ask", 1.0502),
-                            "timestamp": "2025-01-28T12:00:00Z"
-                        }
-                        
-                        await redis.set("fx:EUR-USD", json.dumps(sample_tick), ex=300)
-                        
-                        return {
-                            "status": "success",
-                            "message": "SaxoBank API test successful",
-                            "api_response_status": response.status,
-                            "sample_data_stored": sample_tick
-                        }
-                    finally:
-                        await redis.close()
-                else:
-                    error_text = await response.text()
-                    return {
-                        "status": "api_error",
-                        "message": f"SaxoBank API returned {response.status}",
-                        "error": error_text
-                    }
+        logger.info(f"Attempting to call Saxo API diagnostic endpoint: {diagnostic_url}")
+        response = requests.get(diagnostic_url, headers=headers, timeout=15) # Increased timeout slightly
+        
+        logger.info(f"Saxo API Response Status: {response.status_code}")
+
+        if response.status_code == 200:
+            logger.info("Saxo API diagnostic call successful.")
+            return {"status": "diagnostic_success", "data": response.json()}
+        elif response.status_code == 401:
+            logger.error(f"Saxo API returned 401 Unauthorized for {diagnostic_url}. Token: {access_token[:20]}... Response: {response.text}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"SaxoBank API returned 401 Unauthorized for {diagnostic_url}. Token invalid/expired or insufficient permissions."
+            )
+        elif response.status_code == 403:
+            logger.error(f"Saxo API returned 403 Forbidden for {diagnostic_url}. Token: {access_token[:20]}... Response: {response.text}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"SaxoBank API returned 403 Forbidden. The token is likely valid but does not have permission for this resource or action."
+            )
+        elif response.status_code == 404:
+            logger.error(f"Saxo API returned 404 Not Found for diagnostic endpoint {diagnostic_url}. Raw response: {response.text}")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY, # Changed to 502 as 404 from gateway might mean path issue
+                detail=f"SaxoBank API (diagnostic endpoint {diagnostic_url}) returned 404 Not Found. This might indicate an incorrect base URL or that the specific path does not exist on the live server."
+            )
+        else:
+            logger.error(f"Error calling Saxo API diagnostic endpoint {diagnostic_url}: {response.status_code} - {response.text}")
+            # Attempt to parse JSON error if possible
+            try:
+                error_detail = response.json()
+            except ValueError:
+                error_detail = response.text
+            raise HTTPException(
+                status_code=response.status_code, # Use actual status code from Saxo
+                detail=f"SaxoBank API error for {diagnostic_url}: {error_detail}"
+            )
+
+    except requests.exceptions.Timeout:
+        logger.error(f"Timeout when calling Saxo API diagnostic endpoint: {diagnostic_url}")
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail=f"Timeout connecting to SaxoBank API at {diagnostic_url}"
+        )
+    except requests.exceptions.RequestException as e:
+        logger.error(f"RequestException when calling Saxo API diagnostic endpoint {diagnostic_url}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, # More specific for connection issues
+            detail=f"Error connecting to SaxoBank API ({diagnostic_url}): {e}"
+        )
     except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e),
-            "error_type": type(e).__name__
-        }
+        logger.exception(f"An unexpected error occurred in test_saxo_api for URL {diagnostic_url}") # Use logger.exception for stack trace
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected server error occurred while testing Saxo API: {e}"
+        )
