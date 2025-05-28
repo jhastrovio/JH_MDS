@@ -701,7 +701,7 @@ async def debug_test_saxo_api() -> dict[str, Any]:
         
         # Try to get EUR-USD price from SaxoBank
         async with aiohttp.ClientSession() as session:
-            url = "https://gateway.saxobank.com/openapi/trade/v1/prices?AssetType=FxSpot&Uic=21"
+            url = "https://gateway.saxobank.com/openapi/trade/v1/infoprices/21/FxSpot"
             async with session.get(url, headers=headers) as response:
                 if response.status == 200:
                     data = await response.json()
