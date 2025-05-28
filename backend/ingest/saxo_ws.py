@@ -31,12 +31,12 @@ API_BASE = "https://gateway.saxobank.com/openapi"
 # Symbol to UIC mapping for common FX pairs
 SYMBOL_TO_UIC = {
     "EUR-USD": 21,
-    "GBP-USD": 22, 
-    "USD-JPY": 23,
-    "AUD-USD": 24,
-    "USD-CHF": 25,
-    "USD-CAD": 26,
-    "NZD-USD": 27
+    "GBP-USD": 31, 
+    "USD-JPY": 42,
+    "AUD-USD": 4,
+    "USD-CHF": 39,
+    "USD-CAD": 38,
+    "NZD-USD": 37
 }
 
 
