@@ -192,11 +192,12 @@ class SaxoOAuth:
 
                     expires_in_str = token_json.get("expires_in")
                     if expires_in_str is None:
-                        # Saxo's 'expires_in' should always be present in a successful token response
+                        print(f"SAXO OAUTH: ERROR - Missing 'expires_in' in Saxo response: {token_json}")
                         raise ValueError(f"Missing 'expires_in' in Saxo response: {token_json}")
                     try:
                         expires_in = int(expires_in_str)
-                    except ValueError:
+                    except (ValueError, TypeError):
+                        print(f"SAXO OAUTH: ERROR - Invalid 'expires_in' format, expected integer: {expires_in_str}")
                         raise ValueError(f"Invalid 'expires_in' format, expected integer: {expires_in_str}")
 
                     expires_at = datetime.now() + timedelta(seconds=expires_in)
@@ -394,4 +395,4 @@ try:
     oauth_client = SaxoOAuth()
 except Exception:
     # If OAuth setup fails (missing env vars), create a dummy client
-    oauth_client = None 
+    oauth_client = None
