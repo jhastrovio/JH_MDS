@@ -211,7 +211,14 @@ async def oauth_callback(
         
     try:
         # Exchange code for token
+        print(f"OAUTH CALLBACK: Attempting token exchange with code: {code[:10]}... and state: {state[:10]}...")  # DIAGNOSTIC LOG
         token = await oauth_client.exchange_code_for_token(code, state)
+        
+        if not token:
+            print("OAUTH CALLBACK: ERROR - exchange_code_for_token returned None")  # DIAGNOSTIC LOG
+            raise HTTPException(status_code=500, detail="Token exchange returned None")
+        
+        print(f"OAUTH CALLBACK: Token exchange successful, access_token: {token.access_token[:20]}...")  # DIAGNOSTIC LOG
         
         # Create success HTML response
         html_content = """
@@ -596,4 +603,30 @@ async def debug_refresh_token() -> dict[str, Any]:
             "status": "error",
             "error": str(e),
             "error_type": type(e).__name__
+        }
+
+
+@router.get("/debug/oauth-config")
+async def debug_oauth_config() -> dict[str, Any]:
+    """Debug endpoint to check OAuth configuration."""
+    if not OAUTH_AVAILABLE:
+        return {
+            "error": "OAuth not configured",
+            "oauth_available": False
+        }
+    
+    try:
+        config = oauth_client.config
+        return {
+            "oauth_available": True,
+            "client_id": config.client_id[:10] + "..." if config.client_id else None,
+            "redirect_uri": config.redirect_uri,
+            "has_client_secret": bool(config.client_secret),
+            "auth_url": "https://live.logonvalidation.net/authorize",
+            "token_url": "https://live.logonvalidation.net/token"
+        }
+    except Exception as e:
+        return {
+            "error": f"Failed to get OAuth config: {str(e)}",
+            "oauth_available": False
         }

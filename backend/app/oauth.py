@@ -211,6 +211,9 @@ class SaxoOAuth:
                     
                     # Store token in Redis for persistence
                     await self._store_token(self._current_token)
+                    
+                    print(f"SAXO OAUTH: Token exchange successful. Token expires at: {self._current_token.expires_at}")  # DIAGNOSTIC LOG
+                    
                 except ValueError as ve:
                     # Catch specific ValueErrors from our checks above
                     print(f"SAXO OAUTH: Failed to process token data from Saxo. Error: {ve}") # DIAGNOSTIC LOG
@@ -220,6 +223,12 @@ class SaxoOAuth:
                     # This will catch Pydantic ValidationErrors if fields are still incorrect for SaxoToken model
                     raise HTTPException(status_code=500, detail=f"Failed to create token object: {e}. Raw response: {raw_response_text}")
         
+        # Ensure we have a valid token before returning
+        if not self._current_token:
+            print("SAXO OAUTH: ERROR - No token created despite successful processing")  # DIAGNOSTIC LOG
+            raise HTTPException(status_code=500, detail="Token exchange completed but no token was created")
+        
+        print(f"SAXO OAUTH: Returning token with access_token: {self._current_token.access_token[:20]}...")  # DIAGNOSTIC LOG
         return self._current_token
     
     async def refresh_token(self, refresh_token: str) -> SaxoToken:
@@ -325,6 +334,10 @@ class SaxoOAuth:
 
     async def _store_token(self, token: SaxoToken) -> None:
         """Store token in Redis for persistence across serverless requests."""
+        if not token:
+            print("SAXO OAUTH: ERROR - Attempted to store None token")  # DIAGNOSTIC LOG
+            raise ValueError("Cannot store None token")
+        
         redis = await self._get_redis()
         try:
             token_data = {
@@ -337,6 +350,9 @@ class SaxoOAuth:
             expires_in = int((token.expires_at - datetime.now()).total_seconds()) + 300  # 5 min buffer
             await redis.set("saxo:current_token", json.dumps(token_data), ex=max(expires_in, 60))
             print(f"SAXO OAUTH: Token stored in Redis, expires in {expires_in} seconds")  # DIAGNOSTIC LOG
+        except Exception as e:
+            print(f"SAXO OAUTH: ERROR - Failed to store token in Redis: {e}")  # DIAGNOSTIC LOG
+            # Don't raise here - token is still in memory, Redis storage is just for persistence
         finally:
             await redis.close()
     
