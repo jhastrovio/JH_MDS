@@ -42,7 +42,7 @@ def _verify_jwt(
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
-def _verify_saxo_token(
+async def _verify_saxo_token(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
 ) -> str:
     """Verify SaxoBank OAuth token and return it."""
@@ -51,19 +51,16 @@ def _verify_saxo_token(
     
     token = credentials.credentials
     
-    # For now, we'll trust that if we have the token and it's the same one
-    # stored in our oauth_client, it's valid. In production, you might want
-    # to validate it against SaxoBank's token introspection endpoint.
+    # Get the current valid token (this will load from Redis if needed)
     try:
-        # Check if this token matches our stored token
-        stored_token = oauth_client._current_token
-        if not stored_token or stored_token.access_token != token:
+        valid_token = await oauth_client.get_valid_token()
+        if valid_token != token:
             raise HTTPException(status_code=401, detail="Invalid or expired SaxoBank token")
-        
-        if stored_token.is_expired:
-            raise HTTPException(status_code=401, detail="SaxoBank token expired")
             
         return token
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 401 for expired tokens)
+        raise
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Token validation failed: {str(e)}")
 
@@ -522,4 +519,81 @@ async def test_redis_connection() -> dict[str, Any]:
             "message": "Redis connection failed - check REDIS_URL environment variable",
             "environment": "vercel" if os.environ.get("VERCEL") else "local",
             "redis_url_configured": "yes" if os.environ.get("REDIS_URL") else "no"
+        }
+
+
+@router.get("/debug/token-info")
+async def debug_token_info() -> dict[str, Any]:
+    """Debug endpoint to check current token status."""
+    if not OAUTH_AVAILABLE:
+        return {
+            "error": "OAuth not configured",
+            "oauth_available": False
+        }
+    
+    try:
+        # Try to load token from Redis
+        stored_token = await oauth_client._load_token()
+        
+        if not stored_token:
+            return {
+                "token_status": "no_token",
+                "message": "No token found in Redis or memory"
+            }
+        
+        return {
+            "token_status": "found",
+            "expires_at": stored_token.expires_at.isoformat(),
+            "is_expired": stored_token.is_expired,
+            "has_refresh_token": bool(stored_token.refresh_token),
+            "token_type": stored_token.token_type,
+            "access_token_preview": stored_token.access_token[:20] + "..." if stored_token.access_token else None
+        }
+    except Exception as e:
+        return {
+            "token_status": "error",
+            "error": str(e)
+        }
+
+
+@router.post("/debug/refresh-token")
+async def debug_refresh_token() -> dict[str, Any]:
+    """Debug endpoint to manually trigger token refresh."""
+    if not OAUTH_AVAILABLE:
+        return {
+            "error": "OAuth not configured",
+            "oauth_available": False
+        }
+    
+    try:
+        # Load current token
+        current_token = await oauth_client._load_token()
+        if not current_token:
+            return {
+                "error": "No token available to refresh",
+                "token_status": "no_token"
+            }
+        
+        if not current_token.refresh_token:
+            return {
+                "error": "No refresh token available",
+                "token_status": "no_refresh_token"
+            }
+        
+        # Attempt refresh
+        print("DEBUG: Manually triggering token refresh")
+        refreshed_token = await oauth_client.refresh_token(current_token.refresh_token)
+        
+        return {
+            "status": "success",
+            "message": "Token refreshed successfully",
+            "old_expires_at": current_token.expires_at.isoformat(),
+            "new_expires_at": refreshed_token.expires_at.isoformat(),
+            "new_token_preview": refreshed_token.access_token[:20] + "..." if refreshed_token.access_token else None
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__
         }

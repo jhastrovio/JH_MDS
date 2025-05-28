@@ -208,6 +208,9 @@ class SaxoOAuth:
                         expires_at=expires_at,
                         token_type=token_json.get("token_type", "Bearer") # Use .get for optional fields
                     )
+                    
+                    # Store token in Redis for persistence
+                    await self._store_token(self._current_token)
                 except ValueError as ve:
                     # Catch specific ValueErrors from our checks above
                     print(f"SAXO OAUTH: Failed to process token data from Saxo. Error: {ve}") # DIAGNOSTIC LOG
@@ -235,6 +238,8 @@ class SaxoOAuth:
             "Content-Type": "application/x-www-form-urlencoded"
         }
         
+        print(f"SAXO OAUTH: Attempting token refresh. Request data: {token_data}")  # DIAGNOSTIC LOG
+        
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 SAXO_TOKEN_URL,
@@ -242,48 +247,131 @@ class SaxoOAuth:
                 headers=headers
             ) as response:
                 
-                if response.status != 200:
-                    error_text = await response.text()
+                raw_response_text = await response.text()
+                print(f"SAXO OAUTH: Token refresh response status: {response.status}")  # DIAGNOSTIC LOG
+                print(f"SAXO OAUTH: Token refresh raw response body: {raw_response_text}")  # DIAGNOSTIC LOG
+                
+                # Accept both 200 and 201 as success codes (like in exchange_code_for_token)
+                if response.status not in [200, 201]:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Token refresh failed: {error_text}"
+                        detail=f"Token refresh failed: {raw_response_text}"
                     )
                 
-                token_response = await response.json()
+                try:
+                    token_response = json.loads(raw_response_text)
+                except json.JSONDecodeError as e:
+                    print(f"SAXO OAUTH: Failed to decode JSON from refresh response. Error: {e}")  # DIAGNOSTIC LOG
+                    raise HTTPException(status_code=500, detail=f"Failed to decode token JSON from refresh: {e}. Raw response: {raw_response_text}")
+        
+        # Validate required fields
+        if not isinstance(token_response, dict):
+            raise HTTPException(status_code=500, detail=f"Invalid token response format, expected dict: {token_response}")
+        
+        access_token = token_response.get("access_token")
+        if not access_token:
+            raise HTTPException(status_code=500, detail=f"Missing access_token in refresh response: {token_response}")
         
         # Create new token object
         expires_in = token_response.get("expires_in", 3600)
         expires_at = datetime.now() + timedelta(seconds=expires_in)
         
         token = SaxoToken(
-            access_token=token_response["access_token"],
+            access_token=access_token,
             refresh_token=token_response.get("refresh_token", refresh_token),  # Keep old if not provided
             expires_at=expires_at,
             token_type=token_response.get("token_type", "Bearer")
         )
         
         self._current_token = token
+        print(f"SAXO OAUTH: Token refresh successful. New token expires at: {expires_at}")  # DIAGNOSTIC LOG
+        
+        # Store refreshed token in Redis for persistence
+        await self._store_token(token)
+        
         return token
     
     async def get_valid_token(self) -> str:
         """Get a valid access token, refreshing if necessary."""
+        # First, try to load token from Redis if not in memory
         if not self._current_token:
+            print("SAXO OAUTH: No token in memory, attempting to load from Redis")  # DIAGNOSTIC LOG
+            self._current_token = await self._load_token()
+        
+        if not self._current_token:
+            print("SAXO OAUTH: No token available, authentication required")  # DIAGNOSTIC LOG
             raise HTTPException(
                 status_code=401, 
                 detail="No token available. Please authenticate first."
             )
         
+        print(f"SAXO OAUTH: Checking token validity. Expires at: {self._current_token.expires_at}, Is expired: {self._current_token.is_expired}")  # DIAGNOSTIC LOG
+        
         if self._current_token.is_expired:
             if not self._current_token.refresh_token:
+                print("SAXO OAUTH: Token expired and no refresh token available")  # DIAGNOSTIC LOG
+                await self._clear_token()  # Clear invalid token from Redis
                 raise HTTPException(
                     status_code=401,
                     detail="Token expired and no refresh token available"
                 )
             
+            print("SAXO OAUTH: Token expired, attempting refresh")  # DIAGNOSTIC LOG
             # Refresh the token
             await self.refresh_token(self._current_token.refresh_token)
         
+        print("SAXO OAUTH: Returning valid access token")  # DIAGNOSTIC LOG
         return self._current_token.access_token
+
+    async def _store_token(self, token: SaxoToken) -> None:
+        """Store token in Redis for persistence across serverless requests."""
+        redis = await self._get_redis()
+        try:
+            token_data = {
+                "access_token": token.access_token,
+                "refresh_token": token.refresh_token,
+                "expires_at": token.expires_at.isoformat(),
+                "token_type": token.token_type
+            }
+            # Store token with expiration (add buffer for refresh)
+            expires_in = int((token.expires_at - datetime.now()).total_seconds()) + 300  # 5 min buffer
+            await redis.set("saxo:current_token", json.dumps(token_data), ex=max(expires_in, 60))
+            print(f"SAXO OAUTH: Token stored in Redis, expires in {expires_in} seconds")  # DIAGNOSTIC LOG
+        finally:
+            await redis.close()
+    
+    async def _load_token(self) -> Optional[SaxoToken]:
+        """Load token from Redis."""
+        redis = await self._get_redis()
+        try:
+            token_data_raw = await redis.get("saxo:current_token")
+            if not token_data_raw:
+                print("SAXO OAUTH: No token found in Redis")  # DIAGNOSTIC LOG
+                return None
+            
+            token_data = json.loads(token_data_raw)
+            token = SaxoToken(
+                access_token=token_data["access_token"],
+                refresh_token=token_data["refresh_token"],
+                expires_at=datetime.fromisoformat(token_data["expires_at"]),
+                token_type=token_data["token_type"]
+            )
+            print(f"SAXO OAUTH: Token loaded from Redis, expires at: {token.expires_at}")  # DIAGNOSTIC LOG
+            return token
+        except Exception as e:
+            print(f"SAXO OAUTH: Failed to load token from Redis: {e}")  # DIAGNOSTIC LOG
+            return None
+        finally:
+            await redis.close()
+    
+    async def _clear_token(self) -> None:
+        """Clear token from Redis."""
+        redis = await self._get_redis()
+        try:
+            await redis.delete("saxo:current_token")
+            print("SAXO OAUTH: Token cleared from Redis")  # DIAGNOSTIC LOG
+        finally:
+            await redis.close()
 
 # Global OAuth client instance
 try:
