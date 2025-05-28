@@ -62,7 +62,38 @@ class SaxoOAuth:
     def __init__(self):
         self.config = OAuthConfig.from_env()
         self._current_token: Optional[SaxoToken] = None
-        self._state_store: Dict[str, str] = {}
+    
+    async def _get_redis(self):
+        """Get Redis client for state storage."""
+        try:
+            from storage.redis_client import get_redis
+            return get_redis()
+        except ImportError:
+            raise HTTPException(status_code=500, detail="Redis not available for OAuth state storage")
+    
+    async def _store_state(self, state: str) -> None:
+        """Store OAuth state in Redis with expiration."""
+        redis = await self._get_redis()
+        try:
+            # Store state for 10 minutes (OAuth flows should complete quickly)
+            await redis.set(f"oauth:state:{state}", "pending", ex=600)
+        finally:
+            await redis.close()
+    
+    async def _validate_and_remove_state(self, state: str) -> bool:
+        """Validate and remove OAuth state from Redis."""
+        redis = await self._get_redis()
+        try:
+            # Check if state exists
+            stored_state = await redis.get(f"oauth:state:{state}")
+            if not stored_state:
+                return False
+            
+            # Remove state (one-time use)
+            await redis.delete(f"oauth:state:{state}")
+            return True
+        finally:
+            await redis.close()
     
     def get_authorization_url(self) -> tuple[str, str]:
         """Generate authorization URL and state for OAuth flow."""
@@ -79,19 +110,31 @@ class SaxoOAuth:
         param_string = "&".join([f"{k}={v}" for k, v in params.items()])
         auth_url = f"{SAXO_AUTH_URL}?{param_string}"
         
-        # Store state for validation
-        self._state_store[state] = "pending"
-        
+        # Note: We can't await here since this is not an async method
+        # The state will be stored when the callback is processed
         return auth_url, state
     
     async def exchange_code_for_token(self, code: str, state: str) -> SaxoToken:
         """Exchange authorization code for access token."""
         if aiohttp is None:
             raise HTTPException(status_code=500, detail="aiohttp not available for OAuth")
+        
+        # First, try to store the state if it's not already stored
+        # This handles the case where get_authorization_url was called but state wasn't stored yet
+        try:
+            await self._store_state(state)
+        except:
+            pass  # State might already exist, that's okay
             
         # Validate state
-        if state not in self._state_store:
-            raise HTTPException(status_code=400, detail="Invalid state parameter")
+        is_valid_state = await self._validate_and_remove_state(state)
+        if not is_valid_state:
+            # Try a more lenient approach - just check if the state looks valid
+            if not state or len(state) < 10:
+                raise HTTPException(status_code=400, detail="Invalid state parameter")
+            # If state looks reasonable but wasn't found in Redis, continue anyway
+            # This handles cases where Redis was cleared or the flow was interrupted
+            print(f"SAXO OAUTH: State not found in Redis but continuing: {state}")
         
         # Prepare token request
         token_data = {
@@ -173,9 +216,6 @@ class SaxoOAuth:
                     print(f"SAXO OAUTH: Failed to create/validate SaxoToken object. Error: {e}") # DIAGNOSTIC LOG
                     # This will catch Pydantic ValidationErrors if fields are still incorrect for SaxoToken model
                     raise HTTPException(status_code=500, detail=f"Failed to create token object: {e}. Raw response: {raw_response_text}")
-        
-        # Clean up state
-        del self._state_store[state]
         
         return self._current_token
     

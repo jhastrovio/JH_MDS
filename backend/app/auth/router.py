@@ -169,6 +169,14 @@ async def initiate_oauth() -> dict[str, str]:
     
     try:
         auth_url, state = oauth_client.get_authorization_url()
+        
+        # Store the state in Redis for validation
+        try:
+            await oauth_client._store_state(state)
+        except Exception as e:
+            print(f"Warning: Failed to store OAuth state in Redis: {e}")
+            # Continue anyway - the callback will handle missing state gracefully
+        
         return {
             "auth_url": auth_url,
             "state": state,
@@ -474,3 +482,44 @@ async def get_service_status() -> dict[str, Any]:
         
     finally:
         await redis.close()
+
+
+@router.get("/debug/redis-connection")
+async def test_redis_connection() -> dict[str, Any]:
+    """Test Redis connection for OAuth state storage."""
+    try:
+        redis = get_redis()
+        
+        # Test basic connection
+        await redis.ping()
+        
+        # Test OAuth state operations
+        test_state = "vercel_test_state_12345"
+        
+        # Store test state
+        await redis.set(f"oauth:state:{test_state}", "pending", ex=600)
+        
+        # Retrieve test state
+        stored_state = await redis.get(f"oauth:state:{test_state}")
+        
+        # Clean up test state
+        await redis.delete(f"oauth:state:{test_state}")
+        
+        await redis.close()
+        
+        return {
+            "status": "success",
+            "redis_ping": "ok",
+            "oauth_state_storage": "ok" if stored_state == "pending" else "failed",
+            "message": "Redis connection and OAuth state storage working correctly",
+            "environment": "vercel" if os.environ.get("VERCEL") else "local"
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "message": "Redis connection failed - check REDIS_URL environment variable",
+            "environment": "vercel" if os.environ.get("VERCEL") else "local",
+            "redis_url_configured": "yes" if os.environ.get("REDIS_URL") else "no"
+        }
