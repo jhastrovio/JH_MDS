@@ -143,18 +143,77 @@ async def health_check() -> dict[str, str]:
     return {"status": "healthy", "service": "JH Market Data API"}
 
 
-@router.get("/debug")
-async def debug_info() -> dict[str, Any]:
-    """Debug endpoint to check what's available."""
-    return {
-        "status": "ok",
+@router.get("/debug/status")
+async def consolidated_debug_status() -> dict[str, Any]:
+    """Consolidated debug endpoint for OAuth, Redis, and token status."""
+    status = {
         "oauth_available": OAUTH_AVAILABLE,
         "environment_vars": {
             "JWT_SECRET": "SET" if os.environ.get("JWT_SECRET") else "NOT_SET",
             "REDIS_URL": "SET" if os.environ.get("REDIS_URL") else "NOT_SET",
             "SAXO_APP_KEY": "SET" if os.environ.get("SAXO_APP_KEY") else "NOT_SET",
-        }
+        },
+        "token": None,
+        "redis": None,
+        "oauth_config": None,
     }
+
+    # Token info
+    if OAUTH_AVAILABLE:
+        try:
+            stored_token = await oauth_client._load_token()
+            if stored_token:
+                status["token"] = {
+                    "status": "found",
+                    "expires_at": stored_token.expires_at.isoformat(),
+                    "is_expired": stored_token.is_expired,
+                    "has_refresh_token": bool(stored_token.refresh_token),
+                    "token_type": stored_token.token_type,
+                    "access_token_preview": stored_token.access_token[:20] + "..." if stored_token.access_token else None
+                }
+            else:
+                status["token"] = {"status": "no_token"}
+        except Exception as e:
+            status["token"] = {"status": "error", "error": str(e)}
+    else:
+        status["token"] = {"status": "oauth_not_configured"}
+
+    # Redis info
+    try:
+        redis = get_redis()
+        await redis.ping()
+        fx_keys = []
+        async for key in redis.scan_iter(match="fx:*"):
+            fx_keys.append(key.decode() if isinstance(key, bytes) else key)
+        tick_keys = []
+        async for key in redis.scan_iter(match="ticks:*"):
+            tick_keys.append(key.decode() if isinstance(key, bytes) else key)
+        await redis.close()
+        status["redis"] = {
+            "status": "ok",
+            "fx_keys_count": len(fx_keys),
+            "tick_keys_count": len(tick_keys)
+        }
+    except Exception as e:
+        status["redis"] = {"status": "error", "error": str(e)}
+
+    # OAuth config
+    if OAUTH_AVAILABLE:
+        try:
+            config = oauth_client.config
+            status["oauth_config"] = {
+                "client_id": config.client_id[:10] + "..." if config.client_id else None,
+                "redirect_uri": config.redirect_uri,
+                "has_client_secret": bool(config.client_secret),
+                "auth_url": "https://live.logonvalidation.net/authorize",
+                "token_url": "https://live.logonvalidation.net/token"
+            }
+        except Exception as e:
+            status["oauth_config"] = {"error": str(e)}
+    else:
+        status["oauth_config"] = {"status": "oauth_not_configured"}
+
+    return status
 
 
 @router.get("/login")
@@ -395,39 +454,6 @@ async def get_ticks(
     return ticks
 
 
-@router.get("/debug/redis")
-async def debug_redis() -> dict[str, Any]:
-    """Debug endpoint to check what's in Redis."""
-    redis = get_redis()
-    try:
-        # Get all fx: keys
-        fx_keys = []
-        async for key in redis.scan_iter(match="fx:*"):
-            fx_keys.append(key.decode() if isinstance(key, bytes) else key)
-        
-        # Get all ticks: keys  
-        tick_keys = []
-        async for key in redis.scan_iter(match="ticks:*"):
-            tick_keys.append(key.decode() if isinstance(key, bytes) else key)
-            
-        # Sample some data
-        sample_data = {}
-        for key in fx_keys[:5]:  # Sample first 5
-            raw = await redis.get(key)
-            if raw:
-                sample_data[key] = json.loads(raw)
-                
-        return {
-            "fx_keys_count": len(fx_keys),
-            "fx_keys": fx_keys,
-            "tick_keys_count": len(tick_keys), 
-            "tick_keys": tick_keys,
-            "sample_data": sample_data
-        }
-    finally:
-        await redis.close()
-
-
 @router.get("/service/status")
 async def get_service_status() -> dict[str, Any]:
     """Get real-time market data service status."""
@@ -531,272 +557,374 @@ async def test_redis_connection() -> dict[str, Any]:
         }
 
 
-@router.get("/debug/token-info")
-async def debug_token_info() -> dict[str, Any]:
-    """Debug endpoint to check current token status."""
+@router.get("/login")
+async def initiate_oauth() -> dict[str, str]:
+    """Initiate OAuth flow with SaxoBank."""
     if not OAUTH_AVAILABLE:
-        return {
-            "error": "OAuth not configured",
-            "oauth_available": False
-        }
+        raise HTTPException(
+            status_code=500, 
+            detail="OAuth not configured. Missing environment variables: SAXO_APP_KEY, SAXO_APP_SECRET, SAXO_REDIRECT_URI"
+        )
     
     try:
-        # Try to load token from Redis
-        stored_token = await oauth_client._load_token()
+        auth_url, state = oauth_client.get_authorization_url()
         
-        if not stored_token:
-            return {
-                "token_status": "no_token",
-                "message": "No token found in Redis or memory"
-            }
-        
-        return {
-            "token_status": "found",
-            "expires_at": stored_token.expires_at.isoformat(),
-            "is_expired": stored_token.is_expired,
-            "has_refresh_token": bool(stored_token.refresh_token),
-            "token_type": stored_token.token_type,
-            "access_token_preview": stored_token.access_token[:20] + "..." if stored_token.access_token else None
-        }
-    except Exception as e:
-        return {
-            "token_status": "error",
-            "error": str(e)
-        }
-
-
-@router.post("/debug/refresh-token")
-async def debug_refresh_token() -> dict[str, Any]:
-    """Debug endpoint to manually trigger token refresh."""
-    if not OAUTH_AVAILABLE:
-        return {
-            "error": "OAuth not configured",
-            "oauth_available": False
-        }
-    
-    try:
-        # Load current token
-        current_token = await oauth_client._load_token()
-        if not current_token:
-            return {
-                "error": "No token available to refresh",
-                "token_status": "no_token"
-            }
-        
-        if not current_token.refresh_token:
-            return {
-                "error": "No refresh token available",
-                "token_status": "no_refresh_token"
-            }
-        
-        # Attempt refresh
-        print("DEBUG: Manually triggering token refresh")
-        refreshed_token = await oauth_client.refresh_token(current_token.refresh_token)
-        
-        return {
-            "status": "success",
-            "message": "Token refreshed successfully",
-            "old_expires_at": current_token.expires_at.isoformat(),
-            "new_expires_at": refreshed_token.expires_at.isoformat(),
-            "new_token_preview": refreshed_token.access_token[:20] + "..." if refreshed_token.access_token else None
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e),
-            "error_type": type(e).__name__
-        }
-
-
-@router.get("/debug/oauth-config")
-async def debug_oauth_config() -> dict[str, Any]:
-    """Debug endpoint to check OAuth configuration."""
-    if not OAUTH_AVAILABLE:
-        return {
-            "error": "OAuth not configured",
-            "oauth_available": False
-        }
-    
-    try:
-        config = oauth_client.config
-        return {
-            "oauth_available": True,
-            "client_id": config.client_id[:10] + "..." if config.client_id else None,
-            "redirect_uri": config.redirect_uri,
-            "has_client_secret": bool(config.client_secret),
-            "auth_url": "https://live.logonvalidation.net/authorize",
-            "token_url": "https://live.logonvalidation.net/token"
-        }
-    except Exception as e:
-        return {
-            "error": f"Failed to get OAuth config: {str(e)}",
-            "oauth_available": False
-        }
-
-
-@router.get("/debug/market-data-token")
-async def debug_market_data_token() -> dict[str, Any]:
-    """Debug endpoint to test if market data service can access OAuth token."""
-    if not OAUTH_AVAILABLE:
-        return {
-            "error": "OAuth not configured",
-            "oauth_available": False
-        }
-    
-    try:
-        # Simulate what the market data service does
-        from storage.redis_client import get_redis
-        redis = get_redis()
+        # Store the state in Redis for validation
         try:
-            token_data_raw = await redis.get("saxo:current_token")
-            if not token_data_raw:
-                return {
-                    "status": "no_token",
-                    "message": "No token found in Redis for market data service"
-                }
-            
-            token_data = json.loads(token_data_raw)
-            access_token = token_data.get("access_token")
-            
-            if not access_token:
-                return {
-                    "status": "invalid_token",
-                    "message": "Token data in Redis missing access_token"
-                }
-            
-            return {
-                "status": "success",
-                "message": "Market data service can access OAuth token",
-                "token_preview": access_token[:20] + "..." if access_token else None,
-                "expires_at": token_data.get("expires_at"),
-                "token_type": token_data.get("token_type")
-            }
-        finally:
-            await redis.close()
-    except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e),
-            "message": "Failed to test market data token access"
-        }
-
-
-async def get_valid_access_token(request: Request) -> Optional[str]:
-    """
-    Retrieves a valid access token.
-    Placeholder: Implement your actual logic to retrieve the token,
-    e.g., from Redis, session, or request state.
-    """
-    access_token: Optional[str] = None
-    
-    # Check if token is in request state (if populated by a middleware)
-    if hasattr(request.app.state, 'saxo_access_token') and request.app.state.saxo_access_token:
-        access_token = request.app.state.saxo_access_token
-        logger.info("Retrieved access token from request.app.state.saxo_access_token")
-    
-    # Fallback: Check session (example for FastAPI sessions)
-    if not access_token and hasattr(request, "session") and request.session:
-        stored_token_info = request.session.get("saxo_access_token")
-        if isinstance(stored_token_info, str): # Assuming token is stored as a string
-            access_token = stored_token_info
-            logger.info("Retrieved access token from session")
-        elif isinstance(stored_token_info, dict) and "access_token" in stored_token_info:
-            access_token = stored_token_info["access_token"]
-            logger.info("Retrieved access token from session dictionary")
-
-    # Fallback: Check Redis (example, assuming redis_client is on app.state and user_id is available)
-    # This part is highly speculative and needs to match your actual implementation
-    if not access_token and hasattr(request.app.state, 'redis_client') and hasattr(request.app.state, 'user_id'):
-        try:
-            token_from_redis = await request.app.state.redis_client.get(f"user_token:{request.app.state.user_id}")
-            if token_from_redis:
-                access_token = token_from_redis.decode('utf-8') if isinstance(token_from_redis, bytes) else str(token_from_redis)
-                logger.info("Retrieved access token from Redis")
+            await oauth_client._store_state(state)
         except Exception as e:
-            logger.warning(f"Could not retrieve token from Redis: {e}")
-
-    if not access_token:
-        logger.warning("Access token could not be retrieved by get_valid_access_token.")
-    
-    return access_token
-
-
-@router.get("/test-saxo-api")
-async def test_saxo_api(access_token: Optional[str] = Depends(get_valid_access_token)):
-    # Test API call to Saxo
-    # This function is for testing connectivity and authentication with Saxo API
-    # It now uses the /root/sessions/capabilities endpoint for basic diagnostics.
-
-    if not access_token:
-        logger.error("No access token available for Saxo API test call. Please ensure you are authenticated.")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication token not available. Please authenticate/login first and ensure the token is correctly passed or stored."
-        )
-    
-    logger.info(f"Using access token for Saxo API test: {access_token[:20]}...") # Log only a portion for security
-
-    try:
-        diagnostic_url = "https://gateway.saxobank.com/openapi/root/sessions/capabilities"
+            print(f"Warning: Failed to store OAuth state in Redis: {e}")
+            # Continue anyway - the callback will handle missing state gracefully
         
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Accept": "application/json"
+        return {
+            "auth_url": auth_url,
+            "state": state,
+            "message": "Visit auth_url to complete authentication"
+        }
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"OAuth setup failed: {str(e)}")
+
+
+@router.get("/callback")
+async def oauth_callback(
+    code: str = Query(..., description="Authorization code from SaxoBank"),
+    state: str = Query(..., description="State parameter for validation")
+) -> HTMLResponse:
+    """Handle OAuth callback from SaxoBank."""
+    if not OAUTH_AVAILABLE:
+        return HTMLResponse(
+            content="""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Authentication Error</title>
+            </head>
+            <body>
+                <h2>Authentication Failed</h2>
+                <p>OAuth not configured. Missing environment variables.</p>
+                <p><a href="/">Return to application</a></p>
+            </body>
+            </html>
+            """,
+            status_code=500
+        )
+        
+    try:
+        # Exchange code for token
+        print(f"OAUTH CALLBACK: Attempting token exchange with code: {code[:10]}... and state: {state[:10]}...")  # DIAGNOSTIC LOG
+        token = await oauth_client.exchange_code_for_token(code, state)
+        
+        if not token:
+            print("OAUTH CALLBACK: ERROR - exchange_code_for_token returned None")  # DIAGNOSTIC LOG
+            raise HTTPException(status_code=500, detail="Token exchange returned None")
+        
+        print(f"OAUTH CALLBACK: Token exchange successful, access_token: {token.access_token[:20]}...")  # DIAGNOSTIC LOG
+        
+        # Create success HTML response
+        html_content = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Authentication Success</title>
+            <script>
+                // Remove any URL fragments before processing
+                if (window.location.hash) {
+                    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+                }
+            </script>
+        </head>
+        <body>
+            <h2>Authentication Successful!</h2>
+            <p>You can close this window and return to the application.</p>
+            <script>
+                // If this is a popup, close it and notify parent
+                if (window.opener) {
+                    window.opener.postMessage({
+                        type: 'SAXO_AUTH_SUCCESS',
+                        token: '""" + token.access_token + """',
+                        expires_at: '""" + token.expires_at.isoformat() + """'
+                    }, '*');
+                    window.close();
+                } else {
+                    // If not a popup, redirect to main app
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 2000);
+                }
+            </script>
+        </body>
+        </html>
+        """
+        
+        return HTMLResponse(content=html_content)
+        
+    except HTTPException as e:
+        # Create error HTML response
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Authentication Error</title>
+            <script>
+                // Remove any URL fragments before processing
+                if (window.location.hash) {{
+                    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+                }}
+            </script>
+        </head>
+        <body>
+            <h2>Authentication Failed</h2>
+            <p>{e.detail}</p>
+            <p><a href="/">Return to application</a></p>
+            <script>
+                // If this is a popup, notify parent of error
+                if (window.opener) {{
+                    window.opener.postMessage({{
+                        type: 'SAXO_AUTH_ERROR',
+                        error: '{e.detail}'
+                    }}, '*');
+                }}
+            </script>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content, status_code=e.status_code)
+        
+    except Exception as e:
+        # Create error HTML response
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Authentication Error</title>
+            <script>
+                // Remove any URL fragments before processing
+                if (window.location.hash) {{
+                    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+                }}
+            </script>
+        </head>
+        <body>
+            <h2>Authentication Failed</h2>
+            <p>OAuth callback failed: {str(e)}</p>
+            <p><a href="/">Return to application</a></p>
+            <script>
+                // If this is a popup, notify parent of error
+                if (window.opener) {{
+                    window.opener.postMessage({{
+                        type: 'SAXO_AUTH_ERROR',
+                        error: 'OAuth callback failed: {str(e)}'
+                    }}, '*');
+                }}
+            </script>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content, status_code=500)
+
+
+@router.get("/status")
+async def auth_status() -> dict[str, Any]:
+    """Check current authentication status."""
+    if not OAUTH_AVAILABLE:
+        return {
+            "authenticated": False,
+            "message": "OAuth not configured. Missing environment variables."
         }
         
-        logger.info(f"Attempting to call Saxo API diagnostic endpoint: {diagnostic_url}")
-        response = requests.get(diagnostic_url, headers=headers, timeout=15) # Increased timeout slightly
-        
-        logger.info(f"Saxo API Response Status: {response.status_code}")
-
-        if response.status_code == 200:
-            logger.info("Saxo API diagnostic call successful.")
-            return {"status": "diagnostic_success", "data": response.json()}
-        elif response.status_code == 401:
-            logger.error(f"Saxo API returned 401 Unauthorized for {diagnostic_url}. Token: {access_token[:20]}... Response: {response.text}")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"SaxoBank API returned 401 Unauthorized for {diagnostic_url}. Token invalid/expired or insufficient permissions."
-            )
-        elif response.status_code == 403:
-            logger.error(f"Saxo API returned 403 Forbidden for {diagnostic_url}. Token: {access_token[:20]}... Response: {response.text}")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"SaxoBank API returned 403 Forbidden. The token is likely valid but does not have permission for this resource or action."
-            )
-        elif response.status_code == 404:
-            logger.error(f"Saxo API returned 404 Not Found for diagnostic endpoint {diagnostic_url}. Raw response: {response.text}")
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY, # Changed to 502 as 404 from gateway might mean path issue
-                detail=f"SaxoBank API (diagnostic endpoint {diagnostic_url}) returned 404 Not Found. This might indicate an incorrect base URL or that the specific path does not exist on the live server."
-            )
-        else:
-            logger.error(f"Error calling Saxo API diagnostic endpoint {diagnostic_url}: {response.status_code} - {response.text}")
-            # Attempt to parse JSON error if possible
-            try:
-                error_detail = response.json()
-            except ValueError:
-                error_detail = response.text
-            raise HTTPException(
-                status_code=response.status_code, # Use actual status code from Saxo
-                detail=f"SaxoBank API error for {diagnostic_url}: {error_detail}"
-            )
-
-    except requests.exceptions.Timeout:
-        logger.error(f"Timeout when calling Saxo API diagnostic endpoint: {diagnostic_url}")
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail=f"Timeout connecting to SaxoBank API at {diagnostic_url}"
-        )
-    except requests.exceptions.RequestException as e:
-        logger.error(f"RequestException when calling Saxo API diagnostic endpoint {diagnostic_url}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, # More specific for connection issues
-            detail=f"Error connecting to SaxoBank API ({diagnostic_url}): {e}"
-        )
+    try:
+        # This will raise an exception if no token or token expired
+        token = await oauth_client.get_valid_token()
+        return {
+            "authenticated": True,
+            "message": "Valid token available"
+        }
+    except HTTPException as e:
+        return {
+            "authenticated": False,
+            "message": e.detail
+        }
     except Exception as e:
-        logger.exception(f"An unexpected error occurred in test_saxo_api for URL {diagnostic_url}") # Use logger.exception for stack trace
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected server error occurred while testing Saxo API: {e}"
+        return {
+            "authenticated": False,
+            "message": f"Authentication check failed: {str(e)}"
+        }
+
+
+@router.get("/price", response_model=PriceResponse)
+async def get_price(symbol: str, _: Any = Depends(_verify_jwt)) -> PriceResponse:
+    """Get price data using internal JWT token."""
+    redis = get_redis()
+    key = f"fx:{symbol}"
+    raw = await redis.get(key)
+    await redis.close()
+    if not raw:
+        raise HTTPException(status_code=404, detail="Symbol not found")
+    data = json.loads(raw)
+    tick = Tick(**data)
+    price = (tick.bid + tick.ask) / 2
+    return PriceResponse(symbol=tick.symbol, price=price, timestamp=tick.timestamp)
+
+
+@router.get("/ticks", response_model=list[Tick])
+async def get_ticks(
+    symbol: str,
+    since: Union[str, None] = None,
+    _: Any = Depends(_verify_jwt),
+) -> list[Tick]:
+    """Return cached ticks for symbol using internal JWT token."""
+    redis = get_redis()
+    key = f"ticks:{symbol}"
+    raw_ticks = await redis.lrange(key, 0, -1)
+    await redis.close()
+    if not raw_ticks:
+        raise HTTPException(status_code=404, detail="No ticks found")
+    ticks = [Tick(**json.loads(item)) for item in raw_ticks]
+    if since:
+        try:
+            cutoff = datetime.fromisoformat(since.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid since timestamp")
+        ticks = [
+            t
+            for t in ticks
+            if datetime.fromisoformat(t.timestamp.replace("Z", "+00:00")) >= cutoff
+        ]
+    return ticks
+
+
+@router.get("/service/status")
+async def get_service_status() -> dict[str, Any]:
+    """Get real-time market data service status."""
+    redis = get_redis()
+    try:
+        # Get service status
+        status_raw = await redis.get("service:market_data:status")
+        heartbeat_raw = await redis.get("service:market_data:heartbeat")
+        
+        # Parse status
+        service_status = "unknown"
+        restart_count = 0
+        last_update = None
+        symbols = []
+        
+        if status_raw:
+            try:
+                # Simple parsing since we stored it as string representation
+                status_str = status_raw.replace('"', "'")
+                if "'status': '" in status_str:
+                    service_status = status_str.split("'status': '")[1].split("'")[0]
+                if "'restart_count': " in status_str:
+                    restart_count = int(status_str.split("'restart_count': ")[1].split(",")[0])
+                if "'timestamp': '" in status_str:
+                    last_update = status_str.split("'timestamp': '")[1].split("'")[0]
+            except:
+                pass
+        
+        # Check heartbeat
+        heartbeat_age = None
+        if heartbeat_raw:
+            try:
+                from datetime import datetime, timezone
+                heartbeat_time = datetime.fromisoformat(heartbeat_raw.replace('Z', '+00:00'))
+                current_time = datetime.now(timezone.utc)
+                heartbeat_age = (current_time - heartbeat_time).total_seconds()
+            except:
+                pass
+        
+        # Determine overall health
+        is_healthy = (
+            service_status in ["running", "starting"] and
+            heartbeat_age is not None and
+            heartbeat_age < 120  # Less than 2 minutes old
         )
+        
+        return {
+            "service_status": service_status,
+            "is_healthy": is_healthy,
+            "restart_count": restart_count,
+            "last_update": last_update,
+            "heartbeat_age_seconds": heartbeat_age,
+            "symbols_monitored": [
+                'EUR-USD', 'GBP-USD', 'USD-JPY', 'AUD-USD', 
+                'USD-CHF', 'USD-CAD', 'NZD-USD'
+            ]
+        }
+        
+    finally:
+        await redis.close()
+
+
+@router.get("/debug/status")
+async def consolidated_debug_status() -> dict[str, Any]:
+    """Consolidated debug endpoint for OAuth, Redis, and token status."""
+    status = {
+        "oauth_available": OAUTH_AVAILABLE,
+        "environment_vars": {
+            "JWT_SECRET": "SET" if os.environ.get("JWT_SECRET") else "NOT_SET",
+            "REDIS_URL": "SET" if os.environ.get("REDIS_URL") else "NOT_SET",
+            "SAXO_APP_KEY": "SET" if os.environ.get("SAXO_APP_KEY") else "NOT_SET",
+        },
+        "token": None,
+        "redis": None,
+        "oauth_config": None,
+    }
+
+    # Token info
+    if OAUTH_AVAILABLE:
+        try:
+            stored_token = await oauth_client._load_token()
+            if stored_token:
+                status["token"] = {
+                    "status": "found",
+                    "expires_at": stored_token.expires_at.isoformat(),
+                    "is_expired": stored_token.is_expired,
+                    "has_refresh_token": bool(stored_token.refresh_token),
+                    "token_type": stored_token.token_type,
+                    "access_token_preview": stored_token.access_token[:20] + "..." if stored_token.access_token else None
+                }
+            else:
+                status["token"] = {"status": "no_token"}
+        except Exception as e:
+            status["token"] = {"status": "error", "error": str(e)}
+    else:
+        status["token"] = {"status": "oauth_not_configured"}
+
+    # Redis info
+    try:
+        redis = get_redis()
+        await redis.ping()
+        fx_keys = []
+        async for key in redis.scan_iter(match="fx:*"):
+            fx_keys.append(key.decode() if isinstance(key, bytes) else key)
+        tick_keys = []
+        async for key in redis.scan_iter(match="ticks:*"):
+            tick_keys.append(key.decode() if isinstance(key, bytes) else key)
+        await redis.close()
+        status["redis"] = {
+            "status": "ok",
+            "fx_keys_count": len(fx_keys),
+            "tick_keys_count": len(tick_keys)
+        }
+    except Exception as e:
+        status["redis"] = {"status": "error", "error": str(e)}
+
+    # OAuth config
+    if OAUTH_AVAILABLE:
+        try:
+            config = oauth_client.config
+            status["oauth_config"] = {
+                "client_id": config.client_id[:10] + "..." if config.client_id else None,
+                "redirect_uri": config.redirect_uri,
+                "has_client_secret": bool(config.client_secret),
+                "auth_url": "https://live.logonvalidation.net/authorize",
+                "token_url": "https://live.logonvalidation.net/token"
+            }
+        except Exception as e:
+            status["oauth_config"] = {"error": str(e)}
+    else:
+        status["oauth_config"] = {"status": "oauth_not_configured"}
+
+    return status
