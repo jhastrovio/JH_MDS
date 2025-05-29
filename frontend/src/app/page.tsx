@@ -2,8 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { Activity, TrendingUp, TrendingDown, Zap } from 'lucide-react';
-import { Watchlist, DailyMovers, ConnectionStatus, SaxoAuth } from '@/components';
-import { type MarketSummary, type ConnectionStatus as ConnStatus } from '@/types';
+import Watchlist from '@/components/Watchlist';
+import DailyMovers from '@/components/DailyMovers';
+import ConnectionStatus from '@/components/ConnectionStatus';
+import SaxoAuth from '@/components/SaxoAuth';
+import { type MarketSummary, type ConnectionStatus as ConnStatus } from '@/types/market-data';
 
 export default function Dashboard() {
   const [connectionStatus, setConnectionStatus] = useState<ConnStatus>({

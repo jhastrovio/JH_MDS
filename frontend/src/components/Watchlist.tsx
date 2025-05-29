@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Minus, RefreshCw, AlertCircle } from 'lucide-react';
-import { type MarketData, FX_MAJORS, RATES, INDICES } from '@/types';
+import { type MarketData, FX_MAJORS, RATES, INDICES } from '@/types/market-data';
 import MiniSparkline from './MiniSparkline';
 
 // Fetch real data from backend API
