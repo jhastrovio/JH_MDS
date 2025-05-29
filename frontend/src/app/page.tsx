@@ -6,10 +6,10 @@ import Watchlist from '@/components/Watchlist';
 import DailyMovers from '@/components/DailyMovers';
 import ConnectionStatus from '@/components/ConnectionStatus';
 import SaxoAuth from '@/components/SaxoAuth';
-import { type MarketSummary, type ConnectionStatus as ConnStatus } from '@/types/market-data';
+import type { ConnectionStatus as ConnectionStatusType, MarketSummary } from '@/types';
 
 export default function Dashboard() {
-  const [connectionStatus, setConnectionStatus] = useState<ConnStatus>({
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatusType>({
     connected: false,
     reconnecting: false,
   });
@@ -26,11 +26,11 @@ export default function Dashboard() {
     const timer = setTimeout(() => {
       setConnectionStatus({
         connected: true,
-        lastUpdate: new Date(),
         reconnecting: false,
+        lastUpdated: new Date(),
       });
       
-      setMarketSummary(prev => ({
+      setMarketSummary((prev: MarketSummary) => ({
         ...prev,
         totalSymbols: 25,
         activeStreams: 3,
@@ -146,4 +146,4 @@ export default function Dashboard() {
       </main>
     </div>
   );
-} 
+}

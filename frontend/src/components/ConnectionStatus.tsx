@@ -1,7 +1,7 @@
 'use client';
 
 import { Wifi, WifiOff, RotateCcw } from 'lucide-react';
-import { type ConnectionStatus as ConnStatus } from '@/types';
+import type { ConnectionStatus as ConnStatus } from '@/types';
 
 interface ConnectionStatusProps {
   status: ConnStatus;
@@ -33,9 +33,9 @@ export default function ConnectionStatus({ status }: ConnectionStatusProps) {
   };
 
   const formatLastUpdate = () => {
-    if (!status.lastUpdate) return '';
+    if (!status.lastUpdated) return '';
     const now = new Date();
-    const diff = now.getTime() - status.lastUpdate.getTime();
+    const diff = now.getTime() - status.lastUpdated.getTime();
     const seconds = Math.floor(diff / 1000);
     
     if (seconds < 60) return `${seconds}s ago`;
@@ -52,7 +52,7 @@ export default function ConnectionStatus({ status }: ConnectionStatusProps) {
         <span className={`text-xs font-medium ${getStatusClass()}`}>
           {getStatusText()}
         </span>
-        {status.lastUpdate && status.connected && (
+        {status.lastUpdated && status.connected && (
           <span className="text-xs text-muted-foreground">
             {formatLastUpdate()}
           </span>
@@ -60,4 +60,4 @@ export default function ConnectionStatus({ status }: ConnectionStatusProps) {
       </div>
     </div>
   );
-} 
+}

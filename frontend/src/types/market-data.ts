@@ -48,11 +48,7 @@ export interface WSMessage {
 }
 
 // UI state types
-export interface ConnectionStatus {
-  connected: boolean;
-  lastUpdate?: Date;
-  reconnecting?: boolean;
-}
+// (ConnectionStatus moved to src/types/index.ts)
 
 export interface MarketSummary {
   totalSymbols: number;
@@ -74,4 +70,4 @@ export const RATES = [
 
 export const INDICES = [
   'SPX', 'NDX', 'DAX', 'FTSE', 'NIKKEI', 'HSI'
-]; 
+];
