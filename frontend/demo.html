@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JH Market Data Service - Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bull: '#16a34a',
+                        bear: '#dc2626',
+                        neutral: '#6b7280',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .market-card {
+            @apply bg-white border border-gray-200 rounded-lg p-4 shadow-sm;
+        }
+        .price-positive { @apply text-bull; }
+        .price-negative { @apply text-bear; }
+        .price-neutral { @apply text-neutral; }
+        .data-table { @apply w-full border-collapse; }
+        .data-table th { @apply border-b border-gray-200 px-4 py-2 text-left text-sm font-medium text-gray-500; }
+        .data-table td { @apply border-b border-gray-200 px-4 py-2 text-sm; }
+        .sparkline-container { @apply h-8 w-16; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="border-b border-gray-200 bg-white">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div class="flex h-16 items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <svg class="h-6 w-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                        </svg>
+                        <h1 class="text-xl font-semibold text-gray-900">JH Market Data Service</h1>
+                    </div>
+                    <div class="hidden md:flex items-center space-x-4 text-sm text-gray-500">
+                        <span>FX • Rates • Indices</span>
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <!-- Connection Status -->
+                    <div class="flex items-center space-x-2">
+                        <svg class="h-4 w-4 text-bull" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/>
+                        </svg>
+                        <div class="hidden sm:flex flex-col">
+                            <span class="text-xs font-medium text-bull">Connected</span>
+                            <span class="text-xs text-gray-500">2s ago</span>
+                        </div>
+                    </div>
+                    <div class="hidden md:flex items-center space-x-4 text-sm">
+                        <div class="flex items-center space-x-1">
+                            <svg class="h-4 w-4 text-bull" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                            </svg>
+                            <span>25 symbols</span>
+                        </div>
+                        <div class="flex items-center space-x-1">
+                            <svg class="h-4 w-4 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                            </svg>
+                            <span>3 streams</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+        <div class="space-y-8">
+            <!-- Market Overview Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="market-card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500">Market Status</p>
+                            <p class="text-2xl font-semibold text-bull">Active</p>
+                        </div>
+                        <svg class="h-8 w-8 text-bull" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                        </svg>
+                    </div>
+                </div>
+                
+                <div class="market-card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500">Live Symbols</p>
+                            <p class="text-2xl font-semibold">25</p>
+                        </div>
+                        <svg class="h-8 w-8 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                        </svg>
+                    </div>
+                </div>
+                
+                <div class="market-card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500">Avg Latency</p>
+                            <p class="text-2xl font-semibold text-bull">2.3s</p>
+                        </div>
+                        <svg class="h-8 w-8 text-bull" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Watchlist - Takes up 2 columns -->
+                <div class="lg:col-span-2">
+                    <div class="market-card">
+                        <div class="flex items-center justify-between mb-6">
+                            <h2 class="text-xl font-semibold text-gray-900">Market Watchlist</h2>
+                            
+                            <div class="flex items-center space-x-4">
+                                <!-- Category Filter -->
+                                <div class="flex rounded-lg border border-gray-200 p-1">
+                                    <button class="px-3 py-1 rounded text-sm font-medium bg-gray-900 text-white">All</button>
+                                    <button class="px-3 py-1 rounded text-sm font-medium text-gray-500 hover:text-gray-900">FX</button>
+                                    <button class="px-3 py-1 rounded text-sm font-medium text-gray-500 hover:text-gray-900">Rates</button>
+                                    <button class="px-3 py-1 rounded text-sm font-medium text-gray-500 hover:text-gray-900">Indices</button>
+                                </div>
+
+                                <!-- Refresh Button -->
+                                <button class="flex items-center space-x-2 px-3 py-2 rounded-md border border-gray-200 hover:bg-gray-50 transition-colors">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                    </svg>
+                                    <span class="text-sm">Refresh</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Watchlist Table -->
+                        <div class="overflow-x-auto">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Symbol</th>
+                                        <th>Bid</th>
+                                        <th>Ask</th>
+                                        <th>Change</th>
+                                        <th>Change %</th>
+                                        <th>High</th>
+                                        <th>Low</th>
+                                        <th>Trend</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="watchlist-body">
+                                    <!-- Data populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Daily Movers - Takes up 1 column -->
+                <div class="lg:col-span-1">
+                    <div class="market-card">
+                        <div class="flex items-center justify-between mb-6">
+                            <div class="flex items-center space-x-2">
+                                <svg class="h-5 w-5 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                                </svg>
+                                <h2 class="text-xl font-semibold text-gray-900">Daily Movers</h2>
+                            </div>
+                            
+                            <!-- Category Filter -->
+                            <div class="flex rounded-lg border border-gray-200 p-1">
+                                <button class="px-2 py-1 rounded text-xs font-medium bg-gray-900 text-white">All</button>
+                                <button class="px-2 py-1 rounded text-xs font-medium text-gray-500 hover:text-gray-900">FX</button>
+                                <button class="px-2 py-1 rounded text-xs font-medium text-gray-500 hover:text-gray-900">Rates</button>
+                                <button class="px-2 py-1 rounded text-xs font-medium text-gray-500 hover:text-gray-900">Indices</button>
+                            </div>
+                        </div>
+
+                        <!-- Heat Map Grid -->
+                        <div class="grid grid-cols-2 gap-3" id="movers-grid">
+                            <!-- Data populated by JavaScript -->
+                        </div>
+
+                        <div class="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500 text-center">
+                            Updates every 5 seconds • Sorted by move magnitude
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Features Placeholder -->
+            <div class="market-card">
+                <div class="text-center py-8">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"/>
+                    </svg>
+                    <h3 class="mt-4 text-lg font-medium text-gray-900">Coming Soon</h3>
+                    <p class="mt-2 text-sm text-gray-500">Advanced charting, alerts, and export features are in development.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Mock data generation
+        const FX_MAJORS = ['EUR-USD', 'GBP-USD', 'USD-JPY', 'AUD-USD', 'USD-CHF', 'USD-CAD', 'NZD-USD'];
+        const RATES = ['UST-2Y', 'UST-10Y', 'UST-30Y', 'BUND-10Y', 'GILT-10Y', 'JGB-10Y'];
+        const INDICES = ['SPX', 'NDX', 'DAX', 'FTSE', 'NIKKEI', 'HSI'];
+
+        function generateMockData(symbol) {
+            const basePrice = Math.random() * 2 + 0.5;
+            const bid = basePrice;
+            const ask = bid + 0.0002 + Math.random() * 0.0008;
+            const change = (Math.random() - 0.5) * 0.02;
+            const changePercent = (change / bid) * 100;
+            
+            return {
+                symbol,
+                bid: bid.toFixed(5),
+                ask: ask.toFixed(5),
+                change: change.toFixed(5),
+                changePercent: changePercent.toFixed(2),
+                dayHigh: (bid + Math.random() * 0.01).toFixed(5),
+                dayLow: (bid - Math.random() * 0.01).toFixed(5),
+            };
+        }
+
+        function generateMockMovers() {
+            const symbols = [
+                { symbol: 'EUR-USD', category: 'fx' },
+                { symbol: 'GBP-USD', category: 'fx' },
+                { symbol: 'USD-JPY', category: 'fx' },
+                { symbol: 'SPX', category: 'indices' },
+                { symbol: 'NDX', category: 'indices' },
+                { symbol: 'UST-10Y', category: 'rates' },
+                { symbol: 'BUND-10Y', category: 'rates' },
+                { symbol: 'DAX', category: 'indices' },
+            ];
+
+            return symbols.map(({ symbol, category }) => {
+                const price = Math.random() * 1000 + 100;
+                const changePercent = (Math.random() - 0.5) * 8;
+                const change = (price * changePercent) / 100;
+
+                return {
+                    symbol,
+                    price: price.toFixed(2),
+                    change: change.toFixed(2),
+                    changePercent: changePercent.toFixed(2),
+                    category,
+                };
+            }).sort((a, b) => Math.abs(b.changePercent) - Math.abs(a.changePercent));
+        }
+
+        function createMiniSparkline() {
+            const points = Array.from({ length: 20 }, () => Math.random() * 30 + 10);
+            const width = 64, height = 32;
+            const min = Math.min(...points);
+            const max = Math.max(...points);
+            const range = max - min || 1;
+            
+            const pathData = points.map((value, index) => {
+                const x = (index / (points.length - 1)) * width;
+                const y = height - ((value - min) / range) * height;
+                return `${x},${y}`;
+            }).join(' ');
+
+            const trend = points[points.length - 1] - points[0];
+            const color = trend > 0 ? '#16a34a' : trend < 0 ? '#dc2626' : '#6b7280';
+
+            return `<svg width="${width}" height="${height}" class="overflow-visible">
+                <polyline points="${pathData}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>`;
+        }
+
+        function updateWatchlist() {
+            const allSymbols = [...FX_MAJORS, ...RATES, ...INDICES];
+            const tbody = document.getElementById('watchlist-body');
+            
+            tbody.innerHTML = allSymbols.map(symbol => {
+                const data = generateMockData(symbol);
+                const changeClass = parseFloat(data.changePercent) > 0 ? 'text-bull' : 
+                                  parseFloat(data.changePercent) < 0 ? 'text-bear' : 'text-neutral';
+                const icon = parseFloat(data.changePercent) > 0 ? '↗' : 
+                           parseFloat(data.changePercent) < 0 ? '↘' : '–';
+                
+                return `
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="font-medium font-mono">${data.symbol}</td>
+                        <td class="font-mono">${data.bid}</td>
+                        <td class="font-mono">${data.ask}</td>
+                        <td class="font-mono ${changeClass}">
+                            <div class="flex items-center space-x-1">
+                                <span>${icon}</span>
+                                <span>${parseFloat(data.change) > 0 ? '+' : ''}${data.change}</span>
+                            </div>
+                        </td>
+                        <td class="font-mono ${changeClass}">
+                            ${parseFloat(data.changePercent) > 0 ? '+' : ''}${data.changePercent}%
+                        </td>
+                        <td class="font-mono text-bull">${data.dayHigh}</td>
+                        <td class="font-mono text-bear">${data.dayLow}</td>
+                        <td>
+                            <div class="sparkline-container">
+                                ${createMiniSparkline()}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function updateMovers() {
+            const movers = generateMockMovers();
+            const grid = document.getElementById('movers-grid');
+            
+            grid.innerHTML = movers.slice(0, 8).map(mover => {
+                const abs = Math.abs(parseFloat(mover.changePercent));
+                const bgClass = abs >= 3 ? (parseFloat(mover.changePercent) > 0 ? 'bg-green-100 border-green-300' : 'bg-red-100 border-red-300') :
+                               abs >= 2 ? (parseFloat(mover.changePercent) > 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200') :
+                               abs >= 1 ? (parseFloat(mover.changePercent) > 0 ? 'bg-green-25 border-green-100' : 'bg-red-25 border-red-100') :
+                               'bg-gray-50 border-gray-200';
+                
+                const textClass = parseFloat(mover.changePercent) > 0 ? 'text-bull' : 
+                                parseFloat(mover.changePercent) < 0 ? 'text-bear' : 'text-neutral';
+                const icon = mover.category === 'fx' ? '💱' : mover.category === 'rates' ? '📈' : '📊';
+                const arrow = parseFloat(mover.changePercent) > 0 ? '↗' : 
+                            parseFloat(mover.changePercent) < 0 ? '↘' : '';
+                
+                return `
+                    <div class="rounded-lg border p-4 transition-all duration-200 hover:scale-105 ${bgClass}">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-lg">${icon}</span>
+                                <span class="font-medium font-mono text-sm">${mover.symbol}</span>
+                            </div>
+                            <div class="flex items-center space-x-1 text-xs ${textClass}">
+                                <span>${arrow}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-1">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs text-gray-500">Price</span>
+                                <span class="font-mono text-sm">${mover.price}</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs text-gray-500">Change</span>
+                                <span class="font-mono text-sm font-medium ${textClass}">
+                                    ${parseFloat(mover.changePercent) > 0 ? '+' : ''}${mover.changePercent}%
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Initialize and start live updates
+        updateWatchlist();
+        updateMovers();
+        
+        // Update every 3 seconds
+        setInterval(() => {
+            updateWatchlist();
+            updateMovers();
+        }, 3000);
+    </script>
+</body>
+</html> 
