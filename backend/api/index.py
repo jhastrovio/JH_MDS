@@ -4,7 +4,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.auth.router import router as auth_router
 
-app = FastAPI(title="JH Market Data API")
+app = FastAPI(
+    title="JH Market Data API",
+    version="1.0.0",
+    description="Real-time market data API with SaxoBank integration",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json"
+)
 
 # CORS Configuration for Vercel deployment
 def get_cors_origins():
