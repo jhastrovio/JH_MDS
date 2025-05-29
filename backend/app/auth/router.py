@@ -67,7 +67,10 @@ async def _verify_saxo_token(
     
     # Validate token format (basic check)
     if not token or len(token) < 10:
+        logger.warning(f"Invalid token format: token length {len(token) if token else 0}")
         raise HTTPException(status_code=401, detail="Invalid token format")
+    
+    logger.info(f"Validating token: {token[:20]}...")
     
     # Try to validate against SaxoBank API directly
     try:
@@ -80,7 +83,7 @@ async def _verify_saxo_token(
             }
             # Use a simple portfolio endpoint to validate token
             async with session.get(
-                'https://gateway.saxobank.com/sim/openapi/port/v1/accounts/me',
+                'https://gateway.saxobank.com/openapi/port/v1/accounts/me',
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(total=5)
             ) as response:
@@ -138,7 +141,7 @@ async def get_market_price(symbol: str, token: str = Depends(_verify_saxo_token)
             
             # Use SaxoBank's price endpoint
             # Note: This is a simplified example - you may need to adjust based on actual SaxoBank API
-            url = f"https://gateway.saxobank.com/sim/openapi/trade/v1/prices?symbols={symbol}"
+            url = f"https://gateway.saxobank.com/openapi/trade/v1/prices?symbols={symbol}"
             
             async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
                 if response.status == 200:
