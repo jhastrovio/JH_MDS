@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, BarChart3, AlertCircle } from 'lucide-react';
-import { type DailyMover } from '@/types/market-data';
+import { type DailyMover } from '@/types';
 
 // Fetch real market data and convert to DailyMover format
 const fetchRealMoversData = async (): Promise<DailyMover[]> => {

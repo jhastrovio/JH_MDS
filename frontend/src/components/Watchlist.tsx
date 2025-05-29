@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Minus, RefreshCw, AlertCircle } from 'lucide-react';
-import { type MarketData, FX_MAJORS, RATES, INDICES } from '@/types/market-data';
+import { type MarketData, FX_MAJORS, RATES, INDICES } from '@/types';
 import MiniSparkline from './MiniSparkline';
 
 // Fetch real data from backend API
@@ -292,10 +292,9 @@ export default function Watchlist() {
       {filteredData.length === 0 && (
         <div className="text-center py-8 text-muted-foreground">
           <AlertCircle className="mx-auto h-8 w-8 mb-2" />
-          <p>No real-time data available for {selectedCategory} instruments.</p>
-          <p className="text-sm mt-1">Check your API connection and authentication.</p>
+          <p>No real-time data available for {selectedCategory} instruments.</p>        <p className="text-sm mt-1">Check your API connection and authentication.</p>
         </div>
       )}
     </div>
   );
-} 
+}

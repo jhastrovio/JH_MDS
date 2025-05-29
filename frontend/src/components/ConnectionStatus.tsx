@@ -1,7 +1,7 @@
 'use client';
 
 import { Wifi, WifiOff, RotateCcw } from 'lucide-react';
-import { type ConnectionStatus as ConnStatus } from '@/types/market-data';
+import { type ConnectionStatus as ConnStatus } from '@/types';
 
 interface ConnectionStatusProps {
   status: ConnStatus;
