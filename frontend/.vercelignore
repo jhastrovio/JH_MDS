@@ -1,0 +1,7 @@
+# Vercel build ignore patterns
+node_modules/
+.next/
+.env*
+*.log
+.DS_Store
+__pycache__/
