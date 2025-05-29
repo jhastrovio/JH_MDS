@@ -11,7 +11,7 @@ if str(ROOT_DIR) not in sys.path:
 
 from importlib import import_module  # noqa: E402
 
-router_module = import_module("api.router")
+router_module = import_module("app.auth.router")
 get_price = router_module.get_price  # type: ignore[attr-defined]
 
 

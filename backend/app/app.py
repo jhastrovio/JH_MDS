@@ -10,4 +10,4 @@ app.include_router(auth_router, prefix="/api")
 
 # Log every route FastAPI knows about
 for route in app.router.routes:
-    logger.error(f"🚩 Route registered: {route.name} → {route.path}")
+    logger.info(f"Route registered: {route.name} -> {route.path}")

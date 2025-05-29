@@ -17,6 +17,17 @@ from storage.redis_client import get_redis
 from storage.on_drive import upload_table
 from ..logger import logger  # Use logger from logger.py to avoid circular import
 
+# Import production monitoring
+try:
+    from ..monitoring import health_checker
+    from ..security import security_validator
+    MONITORING_AVAILABLE = True
+except ImportError as e:
+    health_checker = None
+    security_validator = None
+    MONITORING_AVAILABLE = False
+    logger.warning(f"Production monitoring not available: {e}")
+
 # Optional OAuth import - don't break if it fails
 try:
     from ..oauth import oauth_client
@@ -576,3 +587,171 @@ async def get_saxo_instruments(
         async with session.get(url, headers=headers) as resp:
             data = await resp.json()
             return JSONResponse(content=data, status_code=resp.status)
+
+
+# ==============================================================================
+# PRODUCTION HEALTH & MONITORING ENDPOINTS
+# ==============================================================================
+
+@router.get("/health/comprehensive")
+async def comprehensive_health_check() -> dict[str, Any]:
+    """Comprehensive health check for production monitoring."""
+    if not MONITORING_AVAILABLE:
+        return {
+            "status": "degraded",
+            "message": "Monitoring components not available",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    
+    try:
+        health_data = await health_checker.get_system_health()
+        logger.info(f"Health check completed: {health_data['status']}")
+        return health_data
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+@router.get("/health/simple")
+async def simple_health_check() -> dict[str, str]:
+    """Simple health check for load balancers."""
+    try:
+        # Quick Redis ping
+        redis = get_redis()
+        await redis.ping()
+        await redis.close()
+        
+        return {
+            "status": "ok",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Simple health check failed: {e}")
+        raise HTTPException(status_code=503, detail="Service unavailable")
+
+@router.get("/security/validate")
+async def security_validation() -> dict[str, Any]:
+    """Security configuration validation."""
+    if not MONITORING_AVAILABLE:
+        return {
+            "status": "error",
+            "message": "Security validator not available"
+        }
+    
+    try:
+        config_validation = security_validator.validate_production_config()
+        secrets_validation = security_validator.validate_environment_secrets()
+        
+        return {
+            "production_config": config_validation,
+            "secrets_config": secrets_validation,
+            "overall_security_status": "READY" if config_validation["is_production_ready"] and secrets_validation["all_required_present"] else "NOT_READY",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Security validation failed: {e}")
+        return {
+            "status": "error", 
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+@router.get("/deployment/readiness")
+async def deployment_readiness_check() -> dict[str, Any]:
+    """Complete deployment readiness assessment."""
+    try:
+        readiness_checks = {
+            "environment": {},
+            "security": {},
+            "connectivity": {},
+            "configuration": {}
+        }
+        
+        # Environment checks
+        node_env = os.environ.get("NODE_ENV", "development")
+        readiness_checks["environment"] = {
+            "node_env": node_env,
+            "is_production": node_env == "production",
+            "required_vars_present": all(os.environ.get(var) for var in ["REDIS_URL", "SAXO_APP_KEY", "SAXO_APP_SECRET"])
+        }
+        
+        # Security checks
+        if MONITORING_AVAILABLE:
+            security_result = security_validator.validate_production_config()
+            readiness_checks["security"] = {
+                "production_ready": security_result["is_production_ready"],
+                "security_score": security_result["security_score"],
+                "critical_issues": len(security_result["critical_issues"]),
+                "warnings": len(security_result["warnings"])
+            }
+        
+        # Connectivity checks
+        try:
+            redis = get_redis()
+            await redis.ping()
+            await redis.close()
+            redis_status = "ok"
+        except Exception as e:
+            redis_status = f"error: {str(e)}"
+        
+        readiness_checks["connectivity"] = {
+            "redis": redis_status,
+            "oauth_configured": OAUTH_AVAILABLE
+        }
+        
+        # Configuration checks
+        readiness_checks["configuration"] = {
+            "oauth_available": OAUTH_AVAILABLE,
+            "monitoring_available": MONITORING_AVAILABLE,
+            "required_endpoints": ["/auth/login", "/auth/callback", "/auth/status"]
+        }
+        
+        # Overall readiness
+        is_ready = (
+            readiness_checks["environment"]["required_vars_present"] and
+            redis_status == "ok" and
+            OAUTH_AVAILABLE and
+            (not MONITORING_AVAILABLE or readiness_checks["security"]["production_ready"])
+        )
+        
+        return {
+            "deployment_ready": is_ready,
+            "checks": readiness_checks,
+            "timestamp": datetime.utcnow().isoformat(),
+            "recommendations": _get_deployment_recommendations(readiness_checks)
+        }
+        
+    except Exception as e:
+        logger.error(f"Deployment readiness check failed: {e}")
+        return {
+            "deployment_ready": False,
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+def _get_deployment_recommendations(checks: dict) -> list[str]:
+    """Get deployment recommendations based on readiness checks."""
+    recommendations = []
+    
+    if not checks["environment"]["is_production"]:
+        recommendations.append("Set NODE_ENV=production for production deployment")
+    
+    if not checks["environment"]["required_vars_present"]:
+        recommendations.append("Configure all required environment variables (REDIS_URL, SAXO_APP_KEY, SAXO_APP_SECRET)")
+    
+    if checks["connectivity"]["redis"] != "ok":
+        recommendations.append("Fix Redis connectivity issues")
+    
+    if not checks["connectivity"]["oauth_configured"]:
+        recommendations.append("Configure OAuth credentials for SaxoBank integration")
+    
+    if MONITORING_AVAILABLE and not checks["security"]["production_ready"]:
+        recommendations.append("Address security configuration issues")
+    
+    if not recommendations:
+        recommendations.append("All checks passed - ready for production deployment!")
+    
+    return recommendations

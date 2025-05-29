@@ -70,10 +70,19 @@ async def check_live_data():
     finally:
         await redis.aclose()
 
+async def check_all_status():
+    """Checks both service status and live data from Redis."""
+    print("--- Checking Service Status ---")
+    await asyncio.to_thread(print_status) # Run synchronous print_status in a thread
+    print("\n--- Checking Live Data ---")
+    await check_live_data()
+
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "status":
         print_status()
     elif len(sys.argv) > 1 and sys.argv[1] == "live":
         asyncio.run(check_live_data())
+    elif len(sys.argv) > 1 and sys.argv[1] == "check_all": # New argument
+        asyncio.run(check_all_status())
     else:
         asyncio.run(test_redis())

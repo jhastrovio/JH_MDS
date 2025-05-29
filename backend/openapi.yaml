@@ -4,8 +4,8 @@ info:
   version: 1.0.0
   description: API for fetching live market prices, historical ticks, and snapshots.
 servers:
-  - url: https://api.testing.com
-    description: Production server
+  - url: https://jh-mds-backend.vercel.app/
+    description: Vercel deployment
   - url: https://dev.api.testing.com
     description: Development server
 

@@ -19,19 +19,11 @@ from typing import Set
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND_DIR))
 
+# Define ROOT_DIR for absolute log path
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent # JH-MDS directory
+
 from ingest.saxo_ws import stream_quotes
 from storage.redis_client import get_redis
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('market_data_service.log')
-    ]
-)
-logger = logging.getLogger(__name__)
 
 # Service configuration
 FX_SYMBOLS = [
@@ -103,33 +95,42 @@ class MarketDataService:
             logger.info("🛑 Market Data Service stopped")
     
     async def stop(self):
-        """Stop the market data service."""
-        logger.info("🛑 Stopping Market Data Service...")
+        """Stop the market_data_service."""
+        logger.info("🛑 Attempting to stop Market Data Service...")
         self.running = False
-        
+        # Ensure that stream_quotes is not called here.
+        # The main loop in start() should exit, and cleanup will occur in its finally block.
+        logger.info("🛑 Market Data Service running flag set to False.")
+
     async def _health_monitor(self):
         """Monitor service health and update status."""
+        logger.info("💓 Health monitor started.")
         while self.running:
             try:
                 await asyncio.sleep(HEALTH_CHECK_INTERVAL)
                 
                 if not self.running:
+                    logger.info("💓 Health monitor: self.running is false, exiting loop.")
                     break
                     
-                # Check if we're receiving data
                 current_time = datetime.now(timezone.utc)
+                logger.info(f"💓 Health check: Attempting to update heartbeat at {current_time.isoformat()}")
                 
                 # Update heartbeat
                 await self.redis.set(
                     "service:market_data:heartbeat", 
                     current_time.isoformat(),
-                    ex=60
+                    ex=60 # ex=60 means expire in 60 seconds
                 )
+                logger.info(f"💓 Heartbeat updated successfully in Redis at {current_time.isoformat()}")
                 
-                logger.debug(f"💓 Health check - Service running, restarts: {self.restart_count}")
+                logger.debug(f"💓 Health check - Service running, restarts: {self.restart_count}") # Kept as debug
                 
+            except asyncio.CancelledError:
+                logger.info("💓 Health monitor task cancelled.")
+                break
             except Exception as e:
-                logger.error(f"❌ Health monitor error: {e}")
+                logger.error(f"❌ Health monitor error: {e}", exc_info=True) # Add exc_info for full traceback
     
     async def _update_service_status(self, status: str):
         """Update service status in Redis."""
@@ -155,27 +156,58 @@ class MarketDataService:
 service = MarketDataService()
 
 
-def signal_handler(signum, frame):
-    """Handle shutdown signals."""
-    logger.info(f"📡 Received signal {signum}, shutting down...")
-    asyncio.create_task(service.stop())
-
-
-async def main():
-    """Main entry point."""
-    # Set up signal handlers for graceful shutdown
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    
+async def main_wrapper():
+    """Wraps the main service start and handles graceful shutdown on KeyboardInterrupt."""
     try:
         await service.start()
-    except KeyboardInterrupt:
-        logger.info("📡 Keyboard interrupt received")
-    except Exception as e:
-        logger.error(f"❌ Service error: {e}")
+    except asyncio.CancelledError:
+        logger.info("Main task cancelled, shutting down.")
+    # KeyboardInterrupt will be caught in the __main__ block
     finally:
-        await service.stop()
+        # Ensure stop is called if service was started and not stopped by KeyboardInterrupt handler
+        if service.running: # Check if service was actually running
+            logger.info("Service shutting down from main_wrapper finally block.")
+            await service.stop() # Ensure stop is awaited
+        logger.info("Service shutdown complete from main_wrapper.")
 
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    # Simplified logging configuration directly here
+    LOG_FILE_PATH = ROOT_DIR / "market_data_service.log"
+    print(f"[MAIN] Attempting to configure logging to: {LOG_FILE_PATH}")
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(LOG_FILE_PATH, encoding='utf-8'), # Specify UTF-8 encoding
+            logging.StreamHandler() # Keep console output
+        ],
+        force=True
+    )
+
+    logger = logging.getLogger(__name__)
+    logger.info(f"[MAIN] Named logger ({__name__}) ready. Service starting...")
+
+    main_task = None
+    try:
+        # asyncio.run(main()) # Old call
+        asyncio.run(main_wrapper()) # New call
+    except KeyboardInterrupt:
+        logger.info("⌨️ KeyboardInterrupt received by __main__. Attempting graceful shutdown...")
+        if service.running: # If service was started
+            logger.info("Stopping service due to KeyboardInterrupt...")
+            # Need to run the async stop method
+            try:
+                asyncio.run(service.stop()) # Run the async stop method
+            except RuntimeError as e:
+                if "cannot be called when another loop is running" in str(e):
+                    logger.warning(f"Could not run service.stop() due to loop conflict: {e}. Service might not have stopped cleanly.")
+                else:
+                    raise # Re-raise if it's a different RuntimeError
+                
+    finally:
+        logger.info("🏁 Main execution finished.")
+        # Ensure all handlers are flushed before exit
+        for handler in logging.getLogger().handlers:
+            handler.flush()
