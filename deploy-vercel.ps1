@@ -20,7 +20,7 @@ try {
 }
 
 # Function to deploy backend
-function Deploy-Backend {
+function Publish-Backend {
     Write-Host "`n🔧 Deploying Backend to Vercel..." -ForegroundColor Yellow
     
     Set-Location "c:\Users\JamesHassett\dev\JH-MDS\backend"
@@ -125,12 +125,12 @@ function Test-Deployment {
 
 # Main execution logic
 if ($All -or ($Backend -and $Frontend)) {
-    Deploy-Backend
+    Publish-Backend
     $backendUrl = Read-Host "`nEnter your deployed backend URL for frontend configuration"
     Deploy-Frontend
     Test-Deployment -BackendUrl $backendUrl
 } elseif ($Backend) {
-    Deploy-Backend
+    Publish-Backend
     $backendUrl = Read-Host "`nEnter your deployed backend URL for testing (optional)"
     if ($backendUrl) {
         Test-Deployment -BackendUrl $backendUrl
