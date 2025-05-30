@@ -1,3 +1,3 @@
 # backend/api/index.py
 
-from backend.app import app
+from app import app
