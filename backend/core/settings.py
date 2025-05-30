@@ -1,5 +1,6 @@
 # backend/core/settings.py
 from typing import List, Optional
+from functools import lru_cache
 from pydantic_settings import BaseSettings
 from pydantic import AnyUrl, Field
 
@@ -37,4 +38,9 @@ class Settings(BaseSettings):
         if self.FRONTEND_URL:
             origins.append(str(self.FRONTEND_URL))
         return origins
+
+
+@lru_cache()
+def get_settings() -> Settings:
+    return Settings()
 
