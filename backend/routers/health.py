@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends
-from routers.health import get_system_health
+from core.monitoring import get_system_health
 from core.deps import get_redis, get_settings, get_logger
-from redis.asyncio import Redis
+
+# Singleton logger
+logger = get_logger()
 
 router = APIRouter(prefix="/health", tags=["health"])
 

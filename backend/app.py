@@ -7,6 +7,11 @@ from routers.health import router as health_router
 from routers.diagnostics import router as diagnostics_router
 from core.security import get_security_headers
 
+app = FastAPI()
+app.include_router(auth_router)
+app.include_router(market_router)
+app.include_router(health_router)
+app.include_router(diagnostics_router)
 
 def create_app() -> FastAPI:
     settings = get_settings()

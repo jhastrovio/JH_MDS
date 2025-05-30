@@ -19,9 +19,9 @@ from services.oauth_client import SaxoOAuthClient
 
 # === Module-level singletons via DI ===
 settings: Settings = get_settings()
-logger = get_logger(settings)
-http_client = get_httpx_client(settings)
-redis_pool = get_redis_pool(settings)
+logger = get_logger()
+http_client = get_httpx_client()
+redis_pool = get_redis_pool()
 
 # Separate Redis client for OAuth state if needed
 oauth_redis = Redis(connection_pool=redis_pool)

@@ -3,6 +3,9 @@ from core.deps import get_settings, get_logger, get_redis
 from redis.asyncio import Redis
 from services.market_data import fetch_price, fetch_ticks
 
+# Singleton logger
+logger = get_logger()
+
 router = APIRouter(prefix="/market", tags=["market"])
 
 @router.get("/price/{symbol}")

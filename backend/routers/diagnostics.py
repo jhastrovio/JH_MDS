@@ -2,8 +2,11 @@
 
 from fastapi import APIRouter, Depends
 from core.monitoring import get_system_health # Changed from routers.health
-from core.deps import get_settings, get_logger, get_redis
+from core.deps import get_settings, get_logger, get_redis # Removed get_httpx_client as it's unused
 from redis.asyncio import Redis
+
+# Singleton logger
+logger = get_logger()
 
 router = APIRouter(prefix="/debug", tags=["diagnostics"])
 

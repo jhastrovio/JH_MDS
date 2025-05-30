@@ -10,8 +10,9 @@ from fastapi import Depends, HTTPException
 from httpx import AsyncClient
 from pydantic import BaseModel
 
-from core.settings import Settings, get_settings
-from core.deps import get_logger, get_redis, get_httpx_client
+from core.settings import Settings
+from core.deps import get_logger, get_redis, get_httpx_client, get_settings
+
 
 # OAuth endpoints
 SAXO_AUTH_URL = "https://live.logonvalidation.net/authorize"

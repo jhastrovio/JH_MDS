@@ -7,12 +7,15 @@ Uses centralized DI for settings, logging, and Redis.
 import asyncio
 import signal
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 import json
 
-from core.deps import get_logger, get_settings, get_redis_pool
-from core.settings import Settings
+from fastapi import Depends, HTTPException
 from redis.asyncio import Redis
+
+from core.deps import get_redis, get_httpx_client, get_logger, get_settings, get_redis_pool
+from core.settings import Settings
+from models.market import PriceResponse, Tick
 
 from services.saxo_ws import stream_quotes  # make sure you moved saxo_ws here
 
@@ -27,8 +30,8 @@ HEALTH_CHECK_INTERVAL = 30      # seconds
 
 # Instantiate shared dependencies
 settings: Settings = get_settings()
-logger = get_logger(settings)
-redis = Redis(connection_pool=get_redis_pool(settings))
+logger = get_logger()
+redis = Redis(connection_pool=get_redis_pool())
 
 
 class MarketDataService:
@@ -168,3 +171,39 @@ async def main_wrapper():
     await service.stop()
     task.cancel()
     logger.info("Service shutdown complete.")
+
+
+async def fetch_price(
+    symbol: str,
+    redis: Redis = Depends(get_redis),
+    settings = Depends(get_settings),
+    logger = Depends(get_logger),
+) -> PriceResponse:
+    """
+    Return the latest mid‐price for a symbol from Redis.
+    """
+    raw = await redis.get(f"fx:{symbol}")
+    if not raw:
+        raise HTTPException(status_code=404, detail="Symbol not found")
+    data = json.loads(raw)
+    tick = Tick(**data)
+    price = (tick.bid + tick.ask) / 2
+    return PriceResponse(symbol=tick.symbol, price=price, timestamp=tick.timestamp)
+
+
+async def fetch_ticks(
+    symbol: str,
+    since: Optional[str] = None,
+    redis: Redis = Depends(get_redis),
+    settings = Depends(get_settings),
+    logger = Depends(get_logger),
+) -> List[Tick]:
+    """
+    Return a list of recent ticks for `symbol` from Redis, optionally filtered by `since`.
+    """
+    raw_list = await redis.lrange(f"ticks:{symbol}", 0, -1)
+    ticks = [Tick.parse_raw(item) for item in raw_list]
+    if since:
+        cutoff = datetime.fromisoformat(since)
+        ticks = [t for t in ticks if t.timestamp >= cutoff]
+    return ticks
