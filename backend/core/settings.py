@@ -1,6 +1,8 @@
 # backend/core/settings.py
 from typing import List, Optional
-from pydantic import BaseSettings, AnyUrl, Field
+from pydantic_settings import BaseSettings
+from pydantic import AnyUrl, Field
+
 
 class Settings(BaseSettings):
     ENV: str = Field("development", env="ENV")
