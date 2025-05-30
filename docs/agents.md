@@ -8,7 +8,7 @@
 
 1. **`project_scope.md`** – functional & non‑functional requirements.
 2. **System Architecture Diagram** (when available) – component boundaries.
-3. **OpenAPI spec** (`backend/api/openapi.yaml`) – must stay authoritative.
+3. **OpenAPI spec** (`/openapi.json`) – must stay authoritative.
 4. **Type definitions** (`backend/market_data/models.py`, `frontend/types/*.ts`).
 
 The agent MUST read/parse these before generating or editing code.

@@ -12,7 +12,7 @@ from jose import JWTError, jwt
 import requests
 import aiohttp
 
-from market_data.models import PriceResponse, Tick
+from models.market import PriceResponse, Tick
 from storage.redis_client import get_redis
 from storage.on_drive import upload_table
 from ..logger import logger  # Use logger from logger.py to avoid circular import
@@ -114,52 +114,107 @@ async def _verify_saxo_token(
 @router.get("/market/price", response_model=PriceResponse)
 async def get_market_price(symbol: str, token: str = Depends(_verify_saxo_token)) -> PriceResponse:
     """Get price data using SaxoBank OAuth token."""
-    try:
-        # Try to get data from Redis first
-        redis = get_redis()
-        key = f"fx:{symbol}"
-        raw = await redis.get(key)
-        await redis.close()
-        
-        if raw:
-            data = json.loads(raw)
-            tick = Tick(**data)
-            price = (tick.bid + tick.ask) / 2
-            return PriceResponse(symbol=tick.symbol, price=price, timestamp=tick.timestamp)
-    except Exception as e:
-        logger.warning(f"Redis unavailable, falling back to mock data: {e}")
     
-    # Fallback: Return mock data for now to get the system working
-    # This is temporary while we debug the SaxoBank API integration
+    # Symbol to UIC mapping for SaxoBank API calls
+    SYMBOL_TO_UIC = {
+        "EUR-USD": 21,
+        "GBP-USD": 31,
+        "USD-JPY": 42,
+        "AUD-USD": 4,
+        "USD-CHF": 39,
+        "USD-CAD": 38,
+        "NZD-USD": 37
+    }
+    
     try:
-        from datetime import datetime, timezone
-        import random
+        # First, try to get live data directly from SaxoBank API
+        uic = SYMBOL_TO_UIC.get(symbol)
+        if uic:
+            try:
+                url = f"https://gateway.saxobank.com/openapi/trade/v1/infoprices?AssetType=FxSpot&Uic={uic}"
+                headers = {"Authorization": f"Bearer {token}"}
+                
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url, headers=headers) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            
+                            # Extract quote data from SaxoBank response
+                            if "Data" in data and len(data["Data"]) > 0:
+                                quote_data = data["Data"][0]
+                                quote = quote_data.get("Quote", {})
+                                
+                                if "Bid" in quote and "Ask" in quote:
+                                    bid = float(quote["Bid"])
+                                    ask = float(quote["Ask"])
+                                    price = (bid + ask) / 2
+                                    
+                                    from datetime import datetime, timezone
+                                    timestamp = datetime.now(timezone.utc).isoformat()
+                                    
+                                    logger.info(f"Live SaxoBank price for {symbol}: {price} (bid: {bid}, ask: {ask})")
+                                    
+                                    return PriceResponse(
+                                        symbol=symbol,
+                                        price=round(price, 5),
+                                        timestamp=timestamp
+                                    )
+                        else:
+                            logger.warning(f"SaxoBank API returned status {response.status} for {symbol}")
+                            
+            except Exception as e:
+                logger.warning(f"Failed to fetch live price from SaxoBank for {symbol}: {e}")
         
-        # Generate realistic mock prices for major FX pairs
-        mock_prices = {
-            'EUR-USD': 1.0850 + random.uniform(-0.01, 0.01),
-            'GBP-USD': 1.2650 + random.uniform(-0.01, 0.01),
-            'USD-JPY': 150.20 + random.uniform(-1.0, 1.0),
-            'AUD-USD': 0.6750 + random.uniform(-0.01, 0.01),
-            'USD-CHF': 0.9050 + random.uniform(-0.01, 0.01),
-            'USD-CAD': 1.3650 + random.uniform(-0.01, 0.01),
-            'NZD-USD': 0.6150 + random.uniform(-0.01, 0.01),
-        }
+        # Fallback 1: Try to get data from Redis cache
+        try:
+            redis = get_redis()
+            key = f"fx:{symbol}"
+            raw = await redis.get(key)
+            await redis.close()
+            
+            if raw:
+                data = json.loads(raw)
+                tick = Tick(**data)
+                price = (tick.bid + tick.ask) / 2
+                logger.info(f"Returning cached price for {symbol}: {price}")
+                return PriceResponse(symbol=tick.symbol, price=price, timestamp=tick.timestamp)
+        except Exception as e:
+            logger.warning(f"Redis cache unavailable: {e}")
         
-        base_price = mock_prices.get(symbol, 1.0000)
-        timestamp = datetime.now(timezone.utc).isoformat()
-        
-        logger.info(f"Returning mock price for {symbol}: {base_price}")
-        
-        return PriceResponse(
-            symbol=symbol,
-            price=round(base_price, 5),
-            timestamp=timestamp
-        )
-                    
+        # Fallback 2: Return mock data only as last resort
+        try:
+            from datetime import datetime, timezone
+            import random
+            
+            # Generate realistic mock prices for major FX pairs
+            mock_prices = {
+                'EUR-USD': 1.0850 + random.uniform(-0.01, 0.01),
+                'GBP-USD': 1.2650 + random.uniform(-0.01, 0.01),
+                'USD-JPY': 150.20 + random.uniform(-1.0, 1.0),
+                'AUD-USD': 0.6750 + random.uniform(-0.01, 0.01),
+                'USD-CHF': 0.9050 + random.uniform(-0.01, 0.01),
+                'USD-CAD': 1.3650 + random.uniform(-0.01, 0.01),
+                'NZD-USD': 0.6150 + random.uniform(-0.01, 0.01),
+            }
+            
+            base_price = mock_prices.get(symbol, 1.0000)
+            timestamp = datetime.now(timezone.utc).isoformat()
+            
+            logger.warning(f"Returning mock price for {symbol}: {base_price} (live data unavailable)")
+            
+            return PriceResponse(
+                symbol=symbol,
+                price=round(base_price, 5),
+                timestamp=timestamp
+            )
+                        
+        except Exception as e:
+            logger.error(f"Failed to generate mock data: {e}")
+            raise HTTPException(status_code=503, detail="Market data temporarily unavailable")
+            
     except Exception as e:
-        logger.error(f"Failed to generate mock data: {e}")
-        raise HTTPException(status_code=503, detail="Market data temporarily unavailable")
+        logger.error(f"Market price endpoint error for {symbol}: {e}")
+        raise HTTPException(status_code=503, detail="Market data service unavailable")
     
     raise HTTPException(status_code=404, detail="Symbol not found")
 

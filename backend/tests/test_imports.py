@@ -1,26 +1,31 @@
+# test_imports.py
+
 import os
 import sys
 from pathlib import Path
+from importlib import import_module
 
-
-# Ensure repository root is on ``sys.path`` when tests are invoked from the
-# ``tests`` directory. Pytest adds the tests directory to ``sys.path`` by
-# default, so direct imports like ``ingest`` would fail without this tweak.
+# Ensure repository root is on sys.path when tests run from tests/
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-
 def test_import_modules() -> None:
+    # Provide a dummy Redis URL so get_redis() can initialize
     os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
-    import ingest.saxo_ws as saxo_ws
+
+    # Service modules
+    import services.saxo_ws as saxo_ws
     import storage.on_drive as on_drive
-    import storage.redis_client as redis_client
-    from importlib import import_module
 
-    api_router = import_module("api.router")
+    # DI factory for Redis
+    from core.deps import get_redis
 
-    assert callable(redis_client.get_redis)
-    assert hasattr(saxo_ws, "stream_quotes")
-    assert hasattr(on_drive, "upload_bytes")
-    assert hasattr(api_router, "router")
+    # ASGI app entrypoint
+    api_module = import_module("routers.api")
+
+    # Assertions
+    assert hasattr(get_redis, "__call__"), "get_redis should be callable"  # :contentReference[oaicite:0]{index=0}
+    assert hasattr(saxo_ws, "stream_quotes"), "saxo_ws.stream_quotes must exist"
+    assert hasattr(on_drive, "upload_bytes"), "on_drive.upload_bytes must exist"
+    assert hasattr(api_module, "app"), "routers.api must export 'app'"

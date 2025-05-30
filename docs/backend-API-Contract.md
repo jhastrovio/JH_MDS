@@ -65,9 +65,9 @@ components:
           example: Invalid parameter
 
 paths:
-  /api/price:
+  /api/auth/market/price:
     get:
-      summary: Get latest price for a symbol
+      summary: Get latest price for a symbol using SaxoBank OAuth token
       parameters:
         - name: symbol
           in: query
@@ -82,6 +82,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PriceResponse'
+        '401':
+          description: Unauthorized - Invalid or missing SaxoBank token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '400':
           description: Bad Request
           content:
@@ -89,9 +95,38 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /api/ticks:
+  /api/auth/price:
     get:
-      summary: Stream or poll ticks for a symbol
+      summary: Get latest price for a symbol using internal JWT token
+      parameters:
+        - name: symbol
+          in: query
+          required: true
+          schema:
+            type: string
+            example: EUR-USD
+      responses:
+        '200':
+          description: Successful price fetch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriceResponse'
+        '401':
+          description: Unauthorized - Invalid or missing JWT token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/auth/market/ticks:
+    get:
+      summary: Stream or poll ticks for a symbol using SaxoBank OAuth token
       parameters:
         - name: symbol
           in: query
@@ -116,13 +151,46 @@ paths:
                 items:
                   $ref: '#/components/schemas/Tick'
         '401':
-          description: Unauthorized
+          description: Unauthorized - Invalid or missing SaxoBank token
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /api/snapshot:
+  /api/auth/ticks:
+    get:
+      summary: Stream or poll ticks for a symbol using internal JWT token
+      parameters:
+        - name: symbol
+          in: query
+          required: true
+          schema:
+            type: string
+            example: EUR-USD
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+            example: "2025-05-22T08:00:00Z"
+      responses:
+        '200':
+          description: List of ticks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tick'
+        '401':
+          description: Unauthorized - Invalid or missing JWT token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/snapshot:
     post:
       summary: Trigger snapshot write to storage
       requestBody:
@@ -159,8 +227,13 @@ Authorization: Bearer <JWT_TOKEN>
 **Sample cURL**
 
 ```bash
-curl -H "Authorization: Bearer eyJhbGci..." \
-     "https://api.testing.com/api/price?symbol=EUR-USD"
+# Using SaxoBank OAuth token for market data
+curl -H "Authorization: Bearer SAXO_OAUTH_TOKEN" \
+     "https://jh-mds-backend.vercel.app/api/auth/market/price?symbol=EUR-USD"
+
+# Using internal JWT token for cached data  
+curl -H "Authorization: Bearer JWT_TOKEN" \
+     "https://jh-mds-backend.vercel.app/api/auth/price?symbol=EUR-USD"
 ```
 
 **Sample JSON Response**

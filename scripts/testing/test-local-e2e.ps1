@@ -10,9 +10,10 @@ param(
     [switch]$StopServices
 )
 
-$script:BackendPID = $null
-$script:FrontendPID = $null
-$script:RedisPID = $null
+# Global variables to track service processes
+$Global:BackendPID = $null
+$Global:FrontendPID = $null
+$Global:RedisPID = $null
 
 Write-Host "🧪 JH Market Data Service - Local End-to-End Testing" -ForegroundColor Cyan
 Write-Host "====================================================" -ForegroundColor Cyan
@@ -25,6 +26,7 @@ function Start-LocalRedis {
     $redisProcess = Get-Process -Name "redis-server" -ErrorAction SilentlyContinue
     if ($redisProcess) {
         Write-Host "✅ Redis already running (PID: $($redisProcess.Id))" -ForegroundColor Green
+        $Global:RedisPID = $redisProcess.Id
         return
     }
     
@@ -32,6 +34,13 @@ function Start-LocalRedis {
     if (Test-Path ".\start-redis.ps1") {
         Write-Host "Using existing Redis startup script..." -ForegroundColor Cyan
         .\start-redis.ps1
+        # Check if Redis started and capture PID
+        Start-Sleep -Seconds 2
+        $redisProcess = Get-Process -Name "redis-server" -ErrorAction SilentlyContinue
+        if ($redisProcess) {
+            $Global:RedisPID = $redisProcess.Id
+            Write-Host "✅ Redis started successfully (PID: $($redisProcess.Id))" -ForegroundColor Green
+        }
     } else {
         Write-Host "⚠️ Redis startup script not found. Please start Redis manually or install Redis." -ForegroundColor Yellow
         Write-Host "   Download Redis: https://github.com/tporadowski/redis/releases" -ForegroundColor White
