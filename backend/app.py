@@ -9,6 +9,7 @@ from core.security import get_security_headers
 from starlette.middleware.sessions import SessionMiddleware
 from redis.asyncio import Redis
 import logging
+import os
 
 def create_app() -> FastAPI:
     settings = get_settings()
@@ -23,6 +24,7 @@ def create_app() -> FastAPI:
 
     # === centralised CORS ===
     origins = settings.get_cors_origins()
+    logging.getLogger("jh").info(f"CORS origins: {origins}")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
@@ -59,3 +61,4 @@ app = create_app()
 settings = get_settings()
 app.add_middleware(SessionMiddleware, secret_key=settings.JWT_SECRET)
 logging.getLogger("jh").info(f"SAXO_SECRET loaded: {settings.SAXO_SECRET!r}")
+logging.getLogger("jh").info(f"ALL ENV VARS: {os.environ}")
