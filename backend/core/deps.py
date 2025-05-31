@@ -17,11 +17,16 @@ def get_logger() -> logging.Logger:
         logger.addHandler(handler)
     return logger
 
-def get_redis(request: Request) -> Redis:
-    """
-    Return the application-wide Redis client stored on startup.
-    """
-    return request.app.state.redis
+async def get_redis():
+    settings = get_settings()
+    redis = Redis.from_url(
+        str(settings.REDIS_URL),
+        max_connections=settings.REDIS_POOL_SIZE
+    )
+    try:
+        yield redis
+    finally:
+        await redis.close()
 
 @lru_cache(maxsize=1)
 def get_httpx_client() -> AsyncClient:

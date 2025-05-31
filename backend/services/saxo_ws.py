@@ -21,18 +21,8 @@ from services.oauth_client import SaxoOAuthClient
 settings: Settings = get_settings()
 logger = get_logger()
 http_client = get_httpx_client()
-# Separate Redis client for OAuth state
-oauth_redis = Redis.from_url(
-    str(settings.REDIS_URL),
-    max_connections=settings.REDIS_POOL_SIZE
-)
 
-oauth_client = SaxoOAuthClient(
-    settings=settings,
-    logger=logger,
-    client=http_client,
-    redis=oauth_redis,
-)
+oauth_client = None  # Will be constructed with injected Redis in FastAPI context
 
 # === Constants ===
 REDIS_TTL_SECONDS = 30
@@ -110,7 +100,14 @@ async def stream_quotes(symbols: Iterable[str], redis: Redis) -> None:
 
     Retries on disconnect with exponential backoff. Closes OAuth Redis at end.
     """
-    token = await oauth_client.get_valid_token()
+    # Construct a SaxoOAuthClient with the injected Redis
+    oauth_client_local = SaxoOAuthClient(
+        settings=settings,
+        logger=logger,
+        client=http_client,
+        redis=redis,
+    )
+    token = await oauth_client_local.get_valid_token()
     backoff = 1
 
     try:
@@ -185,5 +182,5 @@ async def stream_quotes(symbols: Iterable[str], redis: Redis) -> None:
                 break
 
     finally:
-        await oauth_redis.close()
-        logger.info("🚪 OAuth Redis client closed")
+        # If redis was created here, close it. If injected, let FastAPI handle cleanup.
+        pass

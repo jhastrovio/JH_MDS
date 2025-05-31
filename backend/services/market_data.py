@@ -31,11 +31,6 @@ HEALTH_CHECK_INTERVAL = 30      # seconds
 # Instantiate shared dependencies
 settings: Settings = get_settings()
 logger = get_logger()
-# Standalone Redis client (matches startup styling)
-redis = Redis.from_url(
-    str(settings.REDIS_URL),
-    max_connections=settings.REDIS_POOL_SIZE
-)
 
 
 class MarketDataService:
@@ -53,6 +48,12 @@ class MarketDataService:
         self.running = True
 
         # Set service status in Redis
+        # (You must create a Redis client here if running as a script)
+        self.redis = Redis.from_url(
+            str(settings.REDIS_URL),
+            max_connections=settings.REDIS_POOL_SIZE
+        )
+
         await self._update_service_status("starting")
 
         # Start health monitoring task
@@ -67,7 +68,7 @@ class MarketDataService:
                     )
 
                     # Run the streaming client
-                    await stream_quotes(FX_SYMBOLS, redis)
+                    await stream_quotes(FX_SYMBOLS, self.redis)
 
                     # Normal exit
                     logger.info("📡 Stream ended normally")
@@ -94,7 +95,7 @@ class MarketDataService:
         finally:
             health_task.cancel()
             await self._update_service_status("stopped")
-            await redis.close()
+            await self.redis.close()
             logger.info("🛑 Market Data Service stopped")
 
     async def stop(self):
@@ -120,7 +121,7 @@ class MarketDataService:
                 logger.info(f"💓 Health check at {now.isoformat()}")
 
                 # Update heartbeat key
-                await redis.set(
+                await self.redis.set(
                     "service:market_data:heartbeat",
                     now.isoformat(),
                     ex=HEALTH_CHECK_INTERVAL + 5
@@ -144,7 +145,7 @@ class MarketDataService:
                 "restart_count": self.restart_count,
                 "symbols": FX_SYMBOLS,
             }
-            await redis.set(
+            await self.redis.set(
                 "service:market_data:status",
                 json.dumps(payload),
                 ex=300
