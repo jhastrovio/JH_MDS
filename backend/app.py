@@ -46,19 +46,17 @@ def create_app() -> FastAPI:
     if settings.ENV != "production":
         app.include_router(diagnostics_router)
     # === Redis and settings state ===
-    # Create Redis client immediately (avoids missing startup event in serverless)
     app.state.redis = Redis.from_url(
         str(settings.REDIS_URL),
         max_connections=settings.REDIS_POOL_SIZE
     )
-    # Store settings for later use in routes
     app.state.settings = settings
+
+    # Add SessionMiddleware and log secrets/envs here
+    app.add_middleware(SessionMiddleware, secret_key=settings.JWT_SECRET)
+    logging.getLogger("jh").info(f"SAXO_SECRET loaded: {settings.SAXO_SECRET!r}")
+    logging.getLogger("jh").info(f"ALL ENV VARS: {os.environ}")
 
     return app
 
 app = create_app()
-# Add SessionMiddleware to the app
-settings = get_settings()
-app.add_middleware(SessionMiddleware, secret_key=settings.JWT_SECRET)
-logging.getLogger("jh").info(f"SAXO_SECRET loaded: {settings.SAXO_SECRET!r}")
-logging.getLogger("jh").info(f"ALL ENV VARS: {os.environ}")
