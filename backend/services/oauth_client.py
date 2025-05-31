@@ -1,9 +1,9 @@
 # backend/core/oauth_client.py
 """SaxoBank OAuth client logic, fully DI-powered and testable."""
 
-import secrets
 import json
 import asyncio
+import secrets
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urlencode
@@ -86,7 +86,7 @@ class SaxoOAuthClient:
             "scope": "openapi",
         }
         query = urlencode(params)
-        auth_url_base = self.settings.SAXO_AUTH_URL
+        auth_url_base = SAXO_AUTH_URL
         url = f"{auth_url_base}?{query}"
         return url, state
 

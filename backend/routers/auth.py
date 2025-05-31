@@ -5,6 +5,7 @@ from fastapi.responses import RedirectResponse
 from core.deps import get_settings, get_logger, get_redis
 from services.oauth_client import SaxoOAuthClient, SaxoToken # Corrected import
 from redis.asyncio import Redis
+import logging
 
 # Singleton logger
 logger = get_logger()
@@ -20,21 +21,22 @@ async def login_saxo(
     request: Request,
     oauth_client: SaxoOAuthClient = Depends(SaxoOAuthClient) # Use dependency injection
 ):
-    """
-    Redirects the user to SaxoBank's authentication page.
-    A state token is generated and stored to prevent CSRF attacks.
-    """
+    logger = logging.getLogger("jh")
+    logger.info("/api/auth/login endpoint called")
     try:
         # The get_authorization_url method now correctly returns the auth_url and state
         auth_url, state = await oauth_client.get_authorization_url()
+        logger.info(f"Obtained auth_url: {auth_url}, state: {state}")
         # Store state in session or a secure cookie if preferred
         # For simplicity here, we assume the client might handle it or it's passed through
         request.session["oauth_state"] = state # Example: Storing state in session
         return RedirectResponse(url=auth_url)
     except HTTPException as e:
+        logger.error(f"HTTPException in /api/auth/login: {e.detail}")
         # Re-raise HTTPExceptions directly
         raise e
     except Exception as e:
+        logger.exception("Unhandled exception in /api/auth/login endpoint")
         # Log the exception details for debugging
         # logger.error(f"SaxoBank Authentication - Failed to initiate authentication: {e}", exc_info=True)
         raise HTTPException(

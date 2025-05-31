@@ -42,28 +42,18 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     if settings.ENV != "production":
         app.include_router(diagnostics_router)
-
-    return app
-
-app = create_app()
-app
-
-# Initialize Redis client on startup and close on shutdown
-@app.on_event("startup")
-async def startup_redis():
-    settings = get_settings()
-    # Store settings in state for handlers needing it (e.g., callback)
-    app.state.settings = settings
+    # === Redis and settings state ===
+    # Create Redis client immediately (avoids missing startup event in serverless)
     app.state.redis = Redis.from_url(
         str(settings.REDIS_URL),
         max_connections=settings.REDIS_POOL_SIZE
     )
+    # Store settings for later use in routes
+    app.state.settings = settings
 
-@app.on_event("shutdown")
-async def shutdown_redis():
-    await app.state.redis.close()
+    return app
 
-settings = get_settings()
-
+app = create_app()
 # Add SessionMiddleware to the app
+settings = get_settings()
 app.add_middleware(SessionMiddleware, secret_key=settings.JWT_SECRET)
