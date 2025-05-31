@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     FRONTEND_URL: Optional[AnyUrl] = Field(None, env="FRONTEND_URL")
     VERCEL: bool = Field(False, env="VERCEL")
     HTTP_TIMEOUT: float = Field(10.0, env="HTTP_TIMEOUT")
+    JWT_SECRET: str = Field(..., env="JWT_SECRET")
     
     class Config:
         env_file = ".env"
