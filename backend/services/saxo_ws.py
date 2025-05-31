@@ -17,13 +17,6 @@ from core.settings import Settings, get_settings
 from core.deps import get_logger, get_httpx_client
 from services.oauth_client import SaxoOAuthClient
 
-# === Module-level singletons via DI ===
-settings: Settings = get_settings()
-logger = get_logger()
-http_client = get_httpx_client()
-
-oauth_client = None  # Will be constructed with injected Redis in FastAPI context
-
 # === Constants ===
 REDIS_TTL_SECONDS = 30
 MAX_TICKS_PER_SYMBOL = 100
@@ -50,6 +43,9 @@ class SaxoTick(BaseModel):
 
 async def _create_subscription(symbol: str, context_id: str, token: str) -> str:
     """Create HTTP subscription for a symbol and return reference ID."""
+    http_client = get_httpx_client()
+    logger = get_logger()
+
     uic = SYMBOL_TO_UIC.get(symbol)
     if not uic:
         raise ValueError(f"Unknown symbol: {symbol}")
@@ -100,7 +96,9 @@ async def stream_quotes(symbols: Iterable[str], redis: Redis) -> None:
 
     Retries on disconnect with exponential backoff. Closes OAuth Redis at end.
     """
-    # Construct a SaxoOAuthClient with the injected Redis
+    settings = get_settings()
+    logger = get_logger()
+    http_client = get_httpx_client()
     oauth_client_local = SaxoOAuthClient(
         settings=settings,
         logger=logger,

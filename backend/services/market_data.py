@@ -29,7 +29,6 @@ MAX_RESTART_ATTEMPTS = 10
 HEALTH_CHECK_INTERVAL = 30      # seconds
 
 # Instantiate shared dependencies
-settings: Settings = get_settings()
 logger = get_logger()
 
 
@@ -49,6 +48,7 @@ class MarketDataService:
 
         # Set service status in Redis
         # (You must create a Redis client here if running as a script)
+        settings = get_settings()
         self.redis = Redis.from_url(
             str(settings.REDIS_URL),
             max_connections=settings.REDIS_POOL_SIZE

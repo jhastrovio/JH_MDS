@@ -123,4 +123,18 @@ async def get_current_token(
             detail=f"SaxoBank Authentication - Failed to retrieve token: {str(e)}"
         )
 
+@router.get("/status", summary="Get Saxo authentication status")
+async def auth_status(
+    oauth_client: SaxoOAuthClient = Depends(SaxoOAuthClient)
+):
+    try:
+        access_token = await oauth_client.get_valid_token()
+        return {"authenticated": True, "message": "Authenticated"}
+    except HTTPException as e:
+        if e.status_code == 401:
+            return {"authenticated": False, "message": "Not authenticated"}
+        raise
+    except Exception as e:
+        return {"authenticated": False, "message": f"Error: {str(e)}"}
+
 # ... any other routes or code ...
