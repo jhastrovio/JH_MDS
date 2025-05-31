@@ -3,6 +3,7 @@ from typing import List, Optional
 from functools import lru_cache
 from pydantic_settings import BaseSettings
 from pydantic import AnyUrl, Field
+import os
 
 
 class Settings(BaseSettings):
@@ -38,6 +39,9 @@ class Settings(BaseSettings):
             ]
         if self.FRONTEND_URL:
             origins.append(str(self.FRONTEND_URL))
+        next_public_api_url = os.getenv("NEXT_PUBLIC_API_URL")
+        if next_public_api_url:
+            origins.append(next_public_api_url)
         return origins
 
     def is_saxo_configured(self) -> bool:
