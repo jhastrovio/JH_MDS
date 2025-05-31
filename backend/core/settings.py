@@ -1,6 +1,5 @@
 # backend/core/settings.py
 from typing import List, Optional
-from functools import lru_cache
 from pydantic_settings import BaseSettings
 from pydantic import AnyUrl, Field
 import os
