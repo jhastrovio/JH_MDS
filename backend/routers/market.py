@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from core.deps import get_settings, get_logger, get_redis
 from redis.asyncio import Redis
+from typing import Optional
 from services.market_data import fetch_price, fetch_ticks
 
 # Singleton logger
@@ -23,11 +24,12 @@ async def get_price(
 @router.get("/ticks/{symbol}")
 async def get_ticks(
     symbol: str,
+    since: Optional[str] = None,
     redis=Depends(get_redis),
     settings=Depends(get_settings),
     logger=Depends(get_logger),
 ):
-    ticks = await fetch_ticks(symbol, redis, settings)
+    ticks = await fetch_ticks(symbol, since, redis, settings, logger)
     if not ticks:
         raise HTTPException(status_code=404, detail="No ticks available")
     return ticks
