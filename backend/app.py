@@ -8,6 +8,7 @@ from routers.diagnostics import router as diagnostics_router
 from core.security import get_security_headers
 from starlette.middleware.sessions import SessionMiddleware
 from redis.asyncio import Redis
+import logging
 
 def create_app() -> FastAPI:
     settings = get_settings()
@@ -57,3 +58,4 @@ app = create_app()
 # Add SessionMiddleware to the app
 settings = get_settings()
 app.add_middleware(SessionMiddleware, secret_key=settings.JWT_SECRET)
+logging.getLogger("jh").info(f"SAXO_SECRET loaded: {settings.SAXO_SECRET!r}")
