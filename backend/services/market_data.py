@@ -13,7 +13,7 @@ import json
 from fastapi import Depends, HTTPException
 from redis.asyncio import Redis
 
-from core.deps import get_redis, get_httpx_client, get_logger, get_settings, get_redis_pool
+from core.deps import get_redis, get_httpx_client, get_logger, get_settings
 from core.settings import Settings
 from models.market import PriceResponse, Tick
 
@@ -31,7 +31,11 @@ HEALTH_CHECK_INTERVAL = 30      # seconds
 # Instantiate shared dependencies
 settings: Settings = get_settings()
 logger = get_logger()
-redis = Redis(connection_pool=get_redis_pool())
+# Standalone Redis client (matches startup styling)
+redis = Redis.from_url(
+    str(settings.REDIS_URL),
+    max_connections=settings.REDIS_POOL_SIZE
+)
 
 
 class MarketDataService:

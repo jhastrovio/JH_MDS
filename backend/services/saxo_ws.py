@@ -14,14 +14,18 @@ from redis.asyncio import Redis
 from fastapi import HTTPException
 
 from core.settings import Settings, get_settings
-from core.deps import get_logger, get_httpx_client, get_redis_pool
+from core.deps import get_logger, get_httpx_client
 from services.oauth_client import SaxoOAuthClient
 
 # === Module-level singletons via DI ===
 settings: Settings = get_settings()
 logger = get_logger()
 http_client = get_httpx_client()
-redis_pool = get_redis_pool()
+# Instantiate Redis pool once at module load
+redis_pool = Redis.from_url(
+    str(settings.REDIS_URL),
+    max_connections=settings.REDIS_POOL_SIZE
+)
 
 # Separate Redis client for OAuth state if needed
 oauth_redis = Redis(connection_pool=redis_pool)
