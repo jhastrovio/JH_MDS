@@ -7,12 +7,7 @@ from routers.health import router as health_router
 from routers.diagnostics import router as diagnostics_router
 from core.security import get_security_headers
 from starlette.middleware.sessions import SessionMiddleware
-
-app = FastAPI()
-app.include_router(auth_router)
-app.include_router(market_router)
-app.include_router(health_router)
-app.include_router(diagnostics_router)
+from redis.asyncio import Redis
 
 def create_app() -> FastAPI:
     settings = get_settings()
@@ -51,6 +46,20 @@ def create_app() -> FastAPI:
     return app
 
 app = create_app()
+app
+
+# Initialize Redis client on startup and close on shutdown
+@app.on_event("startup")
+async def startup_redis():
+    settings = get_settings()
+    app.state.redis = Redis.from_url(
+        str(settings.REDIS_URL),
+        max_connections=settings.REDIS_POOL_SIZE
+    )
+
+@app.on_event("shutdown")
+async def shutdown_redis():
+    await app.state.redis.close()
 
 settings = get_settings()
 

@@ -1,11 +1,13 @@
 from functools import lru_cache
-from fastapi import Depends
-from redis.asyncio import ConnectionPool, Redis
+from fastapi import Depends, Request
+from redis.asyncio import Redis
 from .settings import get_settings
 from httpx import AsyncClient
-from contextlib import asynccontextmanager
 import logging
 from typing import AsyncGenerator
+from fastapi import FastAPI
+
+app = FastAPI()
 
 @lru_cache(maxsize=1)
 def get_logger() -> logging.Logger:
@@ -18,34 +20,18 @@ def get_logger() -> logging.Logger:
         logger.addHandler(handler)
     return logger
 
-@lru_cache(maxsize=1)
-def get_redis_pool() -> ConnectionPool:
-    settings = get_settings()
-    return ConnectionPool.from_url(
-        str(settings.REDIS_URL), max_connections=settings.REDIS_POOL_SIZE
-    )
-
-async def get_redis(
-    pool: ConnectionPool = Depends(get_redis_pool)
-) -> AsyncGenerator[Redis, None]:
-    redis = Redis(connection_pool=pool)
-    try:
-        yield redis
-    finally:
-        await redis.close()
+def get_redis(request: Request) -> Redis:
+    """
+    Return the application-wide Redis client stored on startup.
+    """
+    return request.app.state.redis
 
 @lru_cache(maxsize=1)
 def get_httpx_client() -> AsyncClient:
     settings = get_settings()
     return AsyncClient(timeout=settings.HTTP_TIMEOUT)
 
-# Optional: context manager for non-FastAPI use
-@asynccontextmanager
-async def get_redis_conn(
-    pool: ConnectionPool = Depends(get_redis_pool)
-) -> AsyncGenerator[Redis, None]:
-    redis = Redis(connection_pool=pool)
-    try:
-        yield redis
-    finally:
-        await redis.close()
+@app.on_event("shutdown")
+async def shutdown_httpx():
+    httpx_client = get_httpx_client()
+    await httpx_client.aclose()
