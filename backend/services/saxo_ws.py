@@ -21,14 +21,12 @@ from services.oauth_client import SaxoOAuthClient
 settings: Settings = get_settings()
 logger = get_logger()
 http_client = get_httpx_client()
-# Instantiate Redis pool once at module load
-redis_pool = Redis.from_url(
+# Separate Redis client for OAuth state
+oauth_redis = Redis.from_url(
     str(settings.REDIS_URL),
     max_connections=settings.REDIS_POOL_SIZE
 )
 
-# Separate Redis client for OAuth state if needed
-oauth_redis = Redis(connection_pool=redis_pool)
 oauth_client = SaxoOAuthClient(
     settings=settings,
     logger=logger,
