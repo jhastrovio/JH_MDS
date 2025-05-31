@@ -14,7 +14,7 @@ class TestSettings(Settings):
     # Use Upstash Redis URL from environment or fallback to a mock/test URL
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/15")
     SAXO_APP_KEY: str = "test_key"
-    SAXO_SECRET: str = "test_secret"
+    SAXO_APP_SECRET: str = "test_secret"
     SAXO_REDIRECT_URI: str = "http://localhost/callback"
     # any other overrides...
 

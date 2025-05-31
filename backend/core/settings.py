@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     REDIS_URL: AnyUrl = Field(..., env="REDIS_URL")
     REDIS_POOL_SIZE: int = Field(10, env="REDIS_POOL_SIZE")
     SAXO_APP_KEY: str = Field("", env="SAXO_APP_KEY")
-    SAXO_SECRET: str = Field("", env="SAXO_APP_SECRET")
+    SAXO_APP_SECRET: str =  Field("", env="SAXO_APP_SECRET")
     SAXO_REDIRECT_URI: str = Field("http://localhost:8000/callback", env="SAXO_REDIRECT_URI")
     FRONTEND_URL: Optional[AnyUrl] = Field(None, env="FRONTEND_URL")
     VERCEL: bool = Field(False, env="VERCEL")
@@ -45,7 +45,7 @@ class Settings(BaseSettings):
 
     def is_saxo_configured(self) -> bool:
         """Check if Saxo Bank credentials are properly configured."""
-        return bool(self.SAXO_APP_KEY and self.SAXO_SECRET and self.SAXO_REDIRECT_URI)
+        return bool(self.SAXO_APP_KEY and self.SAXO_APP_SECRET and self.SAXO_REDIRECT_URI)
 
 
 def get_settings() -> Settings:

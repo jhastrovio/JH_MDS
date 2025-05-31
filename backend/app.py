@@ -54,7 +54,7 @@ def create_app() -> FastAPI:
 
     # Add SessionMiddleware and log secrets/envs here
     app.add_middleware(SessionMiddleware, secret_key=settings.JWT_SECRET)
-    logging.getLogger("jh").info(f"SAXO_SECRET loaded: {settings.SAXO_SECRET!r}")
+    logging.getLogger("jh").info(f"SAXO_APP_SECRET loaded: {settings.SAXO_APP_SECRET!r}")
     logging.getLogger("jh").info(f"ALL ENV VARS: {os.environ}")
 
     return app

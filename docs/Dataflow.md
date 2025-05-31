@@ -240,7 +240,7 @@ async def exchange_code_for_token(self, code: str, state: str) -> SaxoToken:
             "code": code,
             "redirect_uri": self.settings.SAXO_REDIRECT_URI,
             "client_id": self.settings.SAXO_APP_KEY,
-            "client_secret": self.settings.SAXO_SECRET,
+            "client_secret": self.settings.SAXO_APP_SECRET,
         },
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
@@ -625,9 +625,9 @@ async def stream_quotes(symbols: Iterable[str], redis: Redis) -> None:
     
     try:
         while True:
-            try:
+            try {
                 # Connection code...
-            except (websockets.WebSocketException, OSError) as e:
+            } except (websockets.WebSocketException, OSError) as e {
                 logger.warning("⚠️ Connection error: %s, retrying in %ds", e, backoff)
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 16)  # Exponential backoff up to 16 seconds

@@ -51,7 +51,7 @@ async def _check_environment(settings: Settings) -> Dict[str, Any]:
     vars_to_check = {
         "REDIS_URL": bool(settings.REDIS_URL),
         "SAXO_APP_KEY": bool(settings.SAXO_APP_KEY),
-        "SAXO_SECRET": bool(settings.SAXO_SECRET),
+        "SAXO_APP_SECRET": bool(settings.SAXO_APP_SECRET),
         "SAXO_REDIRECT_URI": bool(settings.SAXO_REDIRECT_URI),
     }
     missing = [key for key, ok in vars_to_check.items() if not ok]
