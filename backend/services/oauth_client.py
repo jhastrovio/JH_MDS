@@ -112,7 +112,12 @@ class SaxoOAuthClient:
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
-        raw = resp.json()
+        try:
+            raw = resp.json()
+        except Exception:
+            text = await resp.aread()
+            self.logger.error(f"SaxoBank token endpoint did not return JSON. Status: {resp.status_code}, Body: {text}")
+            raise HTTPException(status_code=502, detail=f"SaxoBank token endpoint did not return JSON. Status: {resp.status_code}, Body: {text}")
         token = parse_token_response(raw)
 
         # Persist token in Redis (with 5-minute buffer)
