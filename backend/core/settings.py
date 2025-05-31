@@ -49,7 +49,6 @@ class Settings(BaseSettings):
         return bool(self.SAXO_APP_KEY and self.SAXO_SECRET and self.SAXO_REDIRECT_URI)
 
 
-@lru_cache()
 def get_settings() -> Settings:
     return Settings()
 
