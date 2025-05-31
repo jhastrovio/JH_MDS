@@ -9,7 +9,7 @@ from redis.asyncio import Redis
 # Singleton logger
 logger = get_logger()
 
-router = APIRouter()
+router = APIRouter(prefix="/api/auth")
 
 # Dependency for SaxoOAuthClient
 # No longer instantiating SaxoOAuthClient directly in routes
