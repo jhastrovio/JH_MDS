@@ -83,7 +83,7 @@ export default function SaxoAuth() {
     }
   };
 
-  const initiateAuth = async () => {
+  const initiateAuth = () => {
     if (!apiBaseUrl) {
       console.error('NEXT_PUBLIC_API_BASE_URL is not defined');
       setAuthStatus({
@@ -93,46 +93,8 @@ export default function SaxoAuth() {
       setLoading(false);
       return;
     }
-    setLoading(true);
-    try {
-      const response = await fetch(`${apiBaseUrl}/api/auth/login`);
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Authentication initiation failed: ${response.status} ${errorText}`);
-      }
-      
-      const authData: AuthResponse = await response.json();
-      
-      // Redirect to SaxoBank for authentication
-      window.open(authData.auth_url, '_blank');
-      
-      // Start polling for auth completion
-      const pollInterval = setInterval(async () => {
-        // Check if component is still mounted or auth already happened to avoid errors
-        if (authStatus?.authenticated) {
-          clearInterval(pollInterval);
-          setLoading(false);
-          return;
-        }
-        await checkAuthStatus(); 
-      }, 3000); // Polling interval
-      
-      // Stop polling after some time (e.g., 5 minutes)
-      setTimeout(() => {
-        clearInterval(pollInterval);
-        if (!authStatus?.authenticated) { // Only set loading to false if not yet authenticated
-          setLoading(false);
-        }
-      }, 300000); // Stop polling after 5 minutes
-      
-    } catch (error) {
-      console.error('Authentication initiation failed:', error);
-      setAuthStatus({
-        authenticated: false,
-        message: 'Failed to initiate authentication'
-      });
-      setLoading(false);
-    }
+    // Use a full-page redirect for OAuth login
+    window.location.href = `${apiBaseUrl}/api/auth/login`;
   };
 
   const getStatusIcon = () => {
@@ -196,4 +158,4 @@ export default function SaxoAuth() {
       )}
     </div>
   );
-} 
+}
