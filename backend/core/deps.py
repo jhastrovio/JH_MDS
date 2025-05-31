@@ -5,9 +5,6 @@ from .settings import get_settings
 from httpx import AsyncClient
 import logging
 from typing import AsyncGenerator
-from fastapi import FastAPI
-
-app = FastAPI()
 
 @lru_cache(maxsize=1)
 def get_logger() -> logging.Logger:
@@ -30,8 +27,3 @@ def get_redis(request: Request) -> Redis:
 def get_httpx_client() -> AsyncClient:
     settings = get_settings()
     return AsyncClient(timeout=settings.HTTP_TIMEOUT)
-
-@app.on_event("shutdown")
-async def shutdown_httpx():
-    httpx_client = get_httpx_client()
-    await httpx_client.aclose()
