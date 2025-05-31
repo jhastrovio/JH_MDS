@@ -3,6 +3,7 @@
 
 import secrets
 import json
+import asyncio
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Tuple
 
@@ -73,19 +74,23 @@ class SaxoOAuthClient:
         Generate the OAuth authorization URL and a one-time state token
         (stored in Redis for 10 minutes).
         """
-        state = secrets.token_urlsafe(32)
-        await self.redis.set(f"oauth:state:{state}", "pending", ex=600)
+        async def generate_url():
+            state = secrets.token_urlsafe(32)
+            await self.redis.set(f"oauth:state:{state}", "pending", ex=600)
 
-        params = {
-            "response_type": "code",
-            "client_id": self.settings.SAXO_APP_KEY,
-            "redirect_uri": self.settings.SAXO_REDIRECT_URI,
-            "state": state,
-            "scope": "openapi",
-        }
-        query = "&".join(f"{k}={v}" for k, v in params.items())
-        url = f"{SAXO_AUTH_URL}?{query}"
-        return url, state
+            params = {
+                "response_type": "code",
+                "client_id": self.settings.SAXO_APP_KEY,
+                "redirect_uri": self.settings.SAXO_REDIRECT_URI,
+                "state": state,
+                "scope": "openapi",
+            }
+            query = "&".join(f"{k}={v}" for k, v in params.items())
+            url = f"{SAXO_AUTH_URL}?{query}"
+            return url, state
+
+        # Ensure the function is called within an event loop
+        return await asyncio.run(generate_url())
 
     async def exchange_code_for_token(self, code: str, state: str) -> SaxoToken:
         """
