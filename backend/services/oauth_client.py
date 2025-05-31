@@ -100,20 +100,28 @@ class SaxoOAuthClient:
             raise HTTPException(status_code=400, detail="Invalid OAuth state")
         await self.redis.delete(f"oauth:state:{state}")
 
+        # Prepare token request
+        token_data = {
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": self.settings.SAXO_REDIRECT_URI,
+            "client_id": self.settings.SAXO_APP_KEY,
+            "client_secret": self.settings.SAXO_SECRET,
+        }
+        token_headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        self.logger.info(f"Saxo token request data: {token_data}")
+        self.logger.info(f"Saxo token request headers: {token_headers}")
+
         # Request token
         resp = await self.client.post(
             SAXO_TOKEN_URL,
-            data={
-                "grant_type": "authorization_code",
-                "code": code,
-                "redirect_uri": self.settings.SAXO_REDIRECT_URI,
-                "client_id": self.settings.SAXO_APP_KEY,
-                "client_secret": self.settings.SAXO_SECRET,
-            },
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            data=token_data,
+            headers=token_headers,
         )
+        self.logger.info(f"Saxo token response status: {resp.status_code}")
         try:
             raw = resp.json()
+            self.logger.info(f"Saxo token response JSON: {raw}")
         except Exception:
             text = await resp.aread()
             self.logger.error(f"SaxoBank token endpoint did not return JSON. Status: {resp.status_code}, Body: {text}")
