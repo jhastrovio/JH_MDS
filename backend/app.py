@@ -6,6 +6,7 @@ from routers.market import router as market_router
 from routers.health import router as health_router
 from routers.diagnostics import router as diagnostics_router
 from core.security import get_security_headers
+from starlette.middleware.sessions import SessionMiddleware
 
 app = FastAPI()
 app.include_router(auth_router)
@@ -50,3 +51,8 @@ def create_app() -> FastAPI:
     return app
 
 app = create_app()
+
+settings = get_settings()
+
+# Add SessionMiddleware to the app
+app.add_middleware(SessionMiddleware, secret_key=settings.JWT_SECRET)
