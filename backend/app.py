@@ -52,6 +52,8 @@ app
 @app.on_event("startup")
 async def startup_redis():
     settings = get_settings()
+    # Store settings in state for handlers needing it (e.g., callback)
+    app.state.settings = settings
     app.state.redis = Redis.from_url(
         str(settings.REDIS_URL),
         max_connections=settings.REDIS_POOL_SIZE
