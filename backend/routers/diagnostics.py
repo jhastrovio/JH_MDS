@@ -25,3 +25,42 @@ async def metrics(
     # Integrate with Prometheus client here
 ):
     return "TODO: Prometheus metrics output"
+
+@router.get("/redis-data", summary="Get latest Redis FX data for all symbols")
+async def redis_data(
+    redis: Redis = Depends(get_redis),
+):
+    """
+    Returns the latest FX price data and timestamps for all tracked symbols in Redis.
+    """
+    from services.market_data import FX_SYMBOLS
+    import json
+    from datetime import datetime, timezone
+
+    results = []
+    now = datetime.now(timezone.utc)
+    for symbol in FX_SYMBOLS:
+        raw = await redis.get(f"fx:{symbol}")
+        if raw:
+            data = json.loads(raw)
+            ts = data.get("timestamp")
+            age = None
+            if ts:
+                try:
+                    dt = datetime.fromisoformat(ts)
+                    age = (now - dt).total_seconds()
+                except Exception:
+                    age = None
+            results.append({
+                "symbol": symbol,
+                "price": data.get("bid") and data.get("ask") and (data["bid"] + data["ask"]) / 2,
+                "timestamp": ts,
+                "age_seconds": age,
+                "raw": data
+            })
+        else:
+            results.append({
+                "symbol": symbol,
+                "error": "No data in Redis"
+            })
+    return {"fx": results}
