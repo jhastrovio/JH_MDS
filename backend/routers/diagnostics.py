@@ -48,6 +48,8 @@ async def redis_data(
             if ts:
                 try:
                     dt = datetime.fromisoformat(ts)
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
                     age = (now - dt).total_seconds()
                 except Exception:
                     age = None
