@@ -16,7 +16,7 @@ const fetchRealData = async (symbol: string): Promise<MarketData | null> => {
       return null;
     }
 
-    const response = await fetch(`${apiBaseUrl}/api/auth/market/price?symbol=${symbol}`, {
+    const response = await fetch(`${apiBaseUrl}/market/price/${symbol}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -36,13 +36,13 @@ const fetchRealData = async (symbol: string): Promise<MarketData | null> => {
     
     return {
       symbol: priceData.symbol,
-      bid: Number((priceData.price - 0.0001).toFixed(5)), // Simulate bid slightly below price
-      ask: Number((priceData.price + 0.0001).toFixed(5)), // Simulate ask slightly above price
+      bid: Number((priceData.price - 0.0001).toFixed(4)), // Simulate bid slightly below price
+      ask: Number((priceData.price + 0.0001).toFixed(4)), // Simulate ask slightly above price
       timestamp: priceData.timestamp,
       change: 0, // We don't have historical data to calculate change yet
       changePercent: 0, // We don't have historical data to calculate change yet
-      dayHigh: Number((priceData.price + Math.random() * 0.01).toFixed(5)),
-      dayLow: Number((priceData.price - Math.random() * 0.01).toFixed(5)),
+      dayHigh: Number((priceData.price + Math.random() * 0.01).toFixed(4)),
+      dayLow: Number((priceData.price - Math.random() * 0.01).toFixed(4)),
       sparklineData: mockSparkline,
     };
   } catch (error) {
