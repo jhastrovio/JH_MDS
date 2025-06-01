@@ -28,7 +28,7 @@ const fetchRealMoversData = async (): Promise<DailyMover[]> => {
 
   for (const { symbol, category } of symbols) {
     try {
-      const response = await fetch(`${apiBaseUrl}/api/auth/market/price?symbol=${symbol}`, {
+      const response = await fetch(`${apiBaseUrl}/market/price/${symbol}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -242,4 +242,4 @@ export default function DailyMovers() {
       </div>
     </div>
   );
-} 
+}

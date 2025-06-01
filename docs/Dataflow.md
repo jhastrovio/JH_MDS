@@ -121,7 +121,7 @@ const fetchRealData = async (symbol: string): Promise<MarketData | null> => {
       return null;
     }
 
-    const response = await fetch(`${apiBaseUrl}/api/auth/market/price?symbol=${symbol}`, {
+    const response = await fetch(`${apiBaseUrl}/market/price/${symbol}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -623,14 +623,12 @@ When connection issues occur, the system implements exponential backoff:
 async def stream_quotes(symbols: Iterable[str], redis: Redis) -> None:
     backoff = 1
     
-    try:
-        while True:
-            try {
-                # Connection code...
-            } except (websockets.WebSocketException, OSError) as e {
-                logger.warning("⚠️ Connection error: %s, retrying in %ds", e, backoff)
-                await asyncio.sleep(backoff)
-                backoff = min(backoff * 2, 16)  # Exponential backoff up to 16 seconds
+    try {
+        # Connection code...
+    } except (websockets.WebSocketException, OSError) as e {
+        logger.warning("⚠️ Connection error: %s, retrying in %ds", e, backoff)
+        await asyncio.sleep(backoff)
+        backoff = min(backoff * 2, 16)  # Exponential backoff up to 16 seconds
 ```
 
 ### OAuth Token Refresh Mechanism
