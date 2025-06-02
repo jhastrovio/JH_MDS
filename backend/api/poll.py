@@ -3,12 +3,15 @@ import time
 import json
 import httpx
 import redis.asyncio as redis
-from fastapi import Response
+from fastapi import FastAPI, Request, Response
 
 EXTERNAL_API_URL = os.getenv("EXTERNAL_API_URL")
 REDIS_URL = os.getenv("REDIS_URL")
 
-async def handler(request):
+app = FastAPI()
+
+@app.api_route("/", methods=["GET", "POST"])
+async def handler(request: Request):
     status = "ok"
     now = int(time.time() * 1000)
     try:
