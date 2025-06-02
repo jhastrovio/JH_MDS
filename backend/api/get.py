@@ -1,11 +1,14 @@
 import os
 import json
-from fastapi import Response
+from fastapi import FastAPI, Response
 import redis.asyncio as redis
 
 REDIS_URL = os.getenv("REDIS_URL")
 
-async def handler(request):
+app = FastAPI()
+
+@app.api_route("/", methods=["GET"])
+async def get_data_handler():
     r = redis.from_url(REDIS_URL, decode_responses=True)
     try:
         val = await r.get("latest_data")
@@ -16,5 +19,7 @@ async def handler(request):
         await r.close()
         return Response(content=json.dumps(data), media_type="application/json")
     except Exception as e:
-        await r.close()
+        print(f"[get] Error: {e}")
+        if r.is_connected:
+            await r.close()
         return Response(content=json.dumps({"error": "Data not available"}), status_code=503, media_type="application/json")
