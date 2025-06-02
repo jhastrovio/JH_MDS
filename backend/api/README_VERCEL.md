@@ -37,7 +37,11 @@ def handler(event, context):
 
 2. **Environment variables**
    - All env vars should be configured in Vercel dashboard
-   - Access them via the settings module
+   - Required environment variables:
+     - `REDIS_URL`: URL for Redis connection
+     - `NEXT_PUBLIC_API_URL`: URL for the frontend app (used for CORS and API calls)
+     - `JWT_SECRET`: Secret key for JWT token generation
+   - Access environment variables via the settings module
 
 3. **Dependencies**
    - Each API folder should have its own requirements.txt

@@ -65,23 +65,28 @@ def create_app() -> FastAPI:
     logging.getLogger("jh").info(f"SAXO_APP_SECRET loaded: {settings.SAXO_APP_SECRET!r}")
     logging.getLogger("jh").info(f"ALL ENV VARS: {os.environ}")
 
-    # === New: /api/poll endpoint ===
-    @app.get("/api/poll")
+    # === New: /api/poll endpoint ===    @app.get("/api/poll")
     async def poll_handler():
         """
         One‐shot polling:
-        1. Fetch JSON from external URL (settings.EXTERNAL_API_URL).
+        1. Fetch JSON from external URL (prioritizing NEXT_PUBLIC_API_URL).
         2. Write it into Redis under "latest_data" with EX=60.
         3. Return 200 (even on fetch/Redis error) so Cron keeps running.
         """
         settings = app.state.settings
-        EXTERNAL_API_URL = settings.EXTERNAL_API_URL  # e.g. "https://api.example.com/latest"
-        redis: Redis = app.state.redis
-
-        # 1) Fetch from external API
+        
+        # Get API URL - prefer NEXT_PUBLIC_API_URL since that's what's configured in Vercel
+        api_url = settings.NEXT_PUBLIC_API_URL
+        if not api_url:
+            # Fall back to other possible sources
+            api_url = settings.EXTERNAL_API_URL or os.getenv("NEXT_PUBLIC_API_URL") or "https://api.example.com/data"
+            
+        logging.getLogger("jh").info(f"Using API URL: {api_url}")
+        api_endpoint = api_url
+        redis: Redis = app.state.redis# 1) Fetch from external API
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.get(EXTERNAL_API_URL)
+                resp = await client.get(api_endpoint)
                 resp.raise_for_status()
                 data = resp.json()
         except Exception as fetch_err:
