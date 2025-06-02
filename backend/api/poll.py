@@ -2,16 +2,26 @@ import os
 import time
 import json
 import httpx
-import redis.asyncio as redis
-from fastapi import FastAPI, Response
+import sys
+from pathlib import Path
 
-EXTERNAL_API_URL = os.getenv("EXTERNAL_API_URL")
-REDIS_URL = os.getenv("REDIS_URL")
+# Add the parent directory to the path for imports
+sys.path.append(str(Path(__file__).parent.parent))
+
+from fastapi import FastAPI, Response
+import redis.asyncio as redis
+
+# Import from your settings
+from core.settings import get_settings
+
+settings = get_settings()
+EXTERNAL_API_URL = settings.EXTERNAL_API_URL
+REDIS_URL = settings.REDIS_URL
 
 app = FastAPI()
 
 @app.api_route("/", methods=["GET", "POST"])
-async def handler():
+async def poll_handler():
     status = "ok"
     now = int(time.time() * 1000)
     try:
@@ -24,4 +34,8 @@ async def handler():
         await r.close()
     except Exception as e:
         print(f"[poll] Error: {e}")
+        status = "error"
     return Response(content=json.dumps({"status": status, "timestamp": now}), media_type="application/json")
+
+# Export handler for Vercel
+handler = app

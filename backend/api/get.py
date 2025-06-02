@@ -1,9 +1,19 @@
 import os
+import sys
 import json
+from pathlib import Path
+
+# Add the parent directory to the path for imports
+sys.path.append(str(Path(__file__).parent.parent))
+
 from fastapi import FastAPI, Response
 import redis.asyncio as redis
 
-REDIS_URL = os.getenv("REDIS_URL")
+# Import from your settings
+from core.settings import get_settings
+
+settings = get_settings()
+REDIS_URL = settings.REDIS_URL
 
 app = FastAPI()
 
@@ -23,3 +33,6 @@ async def get_data_handler():
         if r.is_connected:
             await r.close()
         return Response(content=json.dumps({"error": "Data not available"}), status_code=503, media_type="application/json")
+
+# Export handler for Vercel
+handler = app
