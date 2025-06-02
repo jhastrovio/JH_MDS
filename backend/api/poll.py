@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 # Add the parent directory to the path for imports
-sys.path.append(str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fastapi import FastAPI, Response
 import redis.asyncio as redis
@@ -37,5 +37,11 @@ async def poll_handler():
         status = "error"
     return Response(content=json.dumps({"status": status, "timestamp": now}), media_type="application/json")
 
-# Export handler for Vercel
-handler = app
+# Standard Vercel serverless handler
+def handler(event, context):
+    """
+    Vercel serverless function handler for FastAPI app
+    """
+    # Return the FastAPI app instance directly
+    # Vercel will handle the ASGI adapter
+    return app

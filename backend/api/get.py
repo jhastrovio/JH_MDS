@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 # Add the parent directory to the path for imports
-sys.path.append(str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fastapi import FastAPI, Response
 import redis.asyncio as redis
@@ -34,5 +34,11 @@ async def get_data_handler():
             await r.close()
         return Response(content=json.dumps({"error": "Data not available"}), status_code=503, media_type="application/json")
 
-# Export handler for Vercel
-handler = app
+# Standard Vercel serverless handler
+def handler(event, context):
+    """
+    Vercel serverless function handler for FastAPI app
+    """
+    # Return the FastAPI app instance directly
+    # Vercel will handle the ASGI adapter
+    return app
