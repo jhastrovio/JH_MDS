@@ -1,14 +1,37 @@
 {
+  "version": 2,
   "builds": [
     {
       "src": "api/index.py",
       "use": "@vercel/python"
+    },
+    {
+      "src": "api/poll.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/get.py",
+      "use": "@vercel/python"
     }
   ],
-  "rewrites": [
+  "routes": [
     {
-      "source": "/(.*)",
-      "destination": "/api/index.py"
+      "src": "/api/poll",
+      "dest": "api/poll.py"
+    },
+    {
+      "src": "/api/get",
+      "dest": "api/get.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "api/index.py"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/poll",
+      "schedule": "*/1 * * * *"
     }
   ]
 }
